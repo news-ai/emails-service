@@ -1,0 +1,20 @@
+{
+  "name": "emails-service",
+  "version": "0.0.1",
+  "description": "Sends out emails from pubsub",
+  "main": "emails.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "NewsAI",
+  "license": "ISC",
+  "dependencies": {
+    "@google-cloud/datastore": "^0.1.1",
+    "google-cloud": "^0.40.0",
+    "moment": "^2.15.1",
+    "q": "^1.4.1",
+    "raven": "^0.12.1",
+    "request": "^2.75.0",
+    "request-promise": "^4.1.1"
+  }
+}
