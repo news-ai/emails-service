@@ -1,5 +1,6 @@
 'use strict';
 
+var raven = require('raven');
 var Q = require('q');
 var rp = require('request-promise');
 var gcloud = require('google-cloud')({
@@ -11,6 +12,15 @@ var datastore = require('@google-cloud/datastore')({
     projectId: 'newsai-1166'
 });
 
+// Initialize Google Cloud
+var pubsub = gcloud.pubsub();
+var subscriptionName = 'appengine-flex-service-1'
+var topicName = 'tabulae-emails-service'
+
+// Initialize Sentry
+var sentryClient = new raven.Client('https://86fa2a75d816431a930f9403613bb8b0:20ffd70440344532ab20fd18c3b998eb@sentry.io/211180');
+sentryClient.patchGlobal();
+
 /**
  * Gets a Datastore key from the kind/key pair in the request.
  *
@@ -19,17 +29,16 @@ var datastore = require('@google-cloud/datastore')({
  * @returns {Object} Datastore key object.
  */
 function getKeysFromRequestData(requestData, resouceType) {
-    if (!requestData.Id) {
+    if (!requestData.EmailIds) {
         throw new Error("Id not provided. Make sure you have a 'Id' property " +
             "in your request");
     }
 
-    var ids = requestData.Id.split(',');
+    var ids = requestData.EmailIds;
     var keys = [];
 
     for (var i = ids.length - 1; i >= 0; i--) {
-        var contactId = parseInt(ids[i], 10);
-        var datastoreId = datastore.key([resouceType, contactId]);
+        var datastoreId = datastore.key([resouceType, ids[i]]);
         keys.push(datastoreId);
     }
 
@@ -49,30 +58,91 @@ function getKeysFromRequestData(requestData, resouceType) {
  * @param {string} data.kind The Datastore kind of the data to retrieve, e.g. 'user'.
  * @param {string} data.key Key at which to retrieve the data, e.g. 5075192766267392.
  */
-function getDatastore(data, resouceType) {
+ function getDatastore(keys) {
+     var deferred = Q.defer();
+     try {
+         datastore.get(keys, function(err, entities) {
+             if (err) {
+                 console.error(err);
+                 sentryClient.captureMessage(err);
+                 deferred.reject(new Error(err));
+             }
+
+             // The get operation will not fail for a non-existent entities, it just
+             // returns null.
+             if (!entities) {
+                 var error = 'Entity does not exist';
+                 console.error(error);
+                 sentryClient.captureMessage(error);
+                 deferred.reject(new Error(error));
+             }
+
+             deferred.resolve(entities);
+         });
+
+     } catch (err) {
+         console.error(err);
+         sentryClient.captureMessage(err);
+         deferred.reject(new Error(err));
+     }
+
+     return deferred.promise;
+ }
+
+function getEmails(data, resouceType) {
     var deferred = Q.defer();
     try {
         var keys = getKeysFromRequestData(data, resouceType);
+        getDatastore(keys).then(function(emails) {
+            // Get user, billing, and files
+            var singleEmailData = emails[0].data;
+            var userAttachmentKeys = [];
 
-        datastore.get(keys, function(err, entities) {
-            if (err) {
+            // Get user
+            var userId = datastore.key(['User', singleEmailData.CreatedBy]);
+            userAttachmentKeys.push(userId);
+
+            // Get files
+            for (var i = 0; i < singleEmailData.Attachments.length; i++) {
+                var fileId = datastore.key(['File', singleEmailData.Attachments[i]]);
+                userAttachmentKeys.push(fileId);
+            }
+
+            getDatastore(userAttachmentKeys).then(function(userFileEntities) {
+                // Get billing
+                var userBillingId = 0;
+                for (var i = 0; i < userFileEntities.length; i++) {
+                    if(userFileEntities[i].key.kind === 'User') {
+                        userBillingId = userFileEntities[i].data.BillingId;
+                    }
+                }
+
+                if (userBillingId === 0) {
+                    var err = 'User Billing Id is missing for user: ' + userId;
+                    console.error(err);
+                    sentryClient.captureMessage(err);
+                    deferred.reject(new Error(err));
+                } else {
+                    var billingKeys = [];
+                    var billingId = datastore.key(['Billing', userBillingId]);
+                    billingKeys.push(billingId);
+
+                    getDatastore(billingKeys).then(function(billingEntities) {
+                        deferred.resolve([emails, userFileEntities, billingEntities]);
+                    }, function(err) {
+                        console.error(err);
+                        sentryClient.captureMessage(err);
+                        deferred.reject(new Error(err));
+                    });
+                }
+            }, function(err) {
                 console.error(err);
                 sentryClient.captureMessage(err);
                 deferred.reject(new Error(err));
-            }
+            });
+        }, function(err) {
 
-            // The get operation will not fail for a non-existent entities, it just
-            // returns null.
-            if (!entities) {
-                var error = 'Entity does not exist';
-                console.error(error);
-                sentryClient.captureMessage(error);
-                deferred.reject(new Error(error));
-            }
-
-            deferred.resolve(entities);
         });
-
     } catch (err) {
         console.error(err);
         sentryClient.captureMessage(err);
@@ -91,6 +161,24 @@ function getTopic(currentTopicName, cb) {
         }
         return cb(err, topic);
     });
+}
+
+function sendEmails(data) {
+    var deferred = Q.defer();
+
+    getEmails(data, 'Email').then(function(emailFileBilling) {
+        // Get emails, userFiles, and userBilling
+        var emails = emailFileBilling[0];
+        var userFiles = emailFileBilling[1];
+        var userBilling = emailFileBilling[2];
+
+        // Get files of the attachment themselves
+        console.log(userBilling);
+    }, function(err) {
+        console.error(err);
+    })
+
+    return deferred.promise;
 }
 
 // Subscribe to Pub/Sub for this particular topic
@@ -144,5 +232,13 @@ function subscribe(cb) {
 
 // Begin subscription
 subscribe(function(err, message) {
-    
+    sendEmails(message.data).then(function(status) {
+        rp('https://hchk.io/ccb41d9b-287f-4a8c-af43-8113aa0ccc34').then(function(htmlString) {
+            console.log('Email sent for ' + message.data)
+        }).catch(function(err) {
+            console.error(err);
+        });
+    }, function(err) {
+        console.error(err);
+    });
 });
