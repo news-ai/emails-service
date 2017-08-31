@@ -93,29 +93,24 @@ function getKeysFromRequestData(requestData, resouceType) {
 
 function getAttachment(attachment) {
     var deferred = Q.defer();
+    var fileContents = new Buffer('');
     var bucket = storage.bucket(storageBucket);
-    var stream = bucket.file(attachment.data.FileName).createReadStream();
+    var bucketFile = bucket.file(attachment.data.FileName);
+    var stream = bucketFile.createReadStream();
 
-    console.log(attachment);
-
-    // var file = {
-    //     name: attachment.data.FileName,
-    //     type: attachment.data.contentType,
-    //     data: data
-    // }
-
-    // var blob = bucket.file(attachment.data.FileName);
-    // var blobStream = blob.createWriteStream();
-
-    // blobStream.on('error', )
-
-    // bucket.file(attachment.data.FileName).download({
-
-    // }, function(err) {
-    //     console.error(err);
-    //     sentryClient.captureMessage(err);
-    //     deferred.reject(new Error(err));
-    // });
+    stream.on('data', function(chunk) {
+        fileContents = Buffer.concat([fileContents, chunk]);
+    }).on('end', function() {
+        bucketFile.get(function(err, fileData, apiResponse) {
+            // file.metadata` has been populated.
+            var file = {
+                name: attachment.data.OriginalName,
+                type: fileData.metadata.contentType,
+                data: fileContents
+            };
+            deferred.resolve(file);
+        });
+    });
 
     return deferred.promise;
 }
@@ -219,6 +214,7 @@ function sendEmails(data) {
     getEmails(data, 'Email').then(function(emailData) {
         // Get files of the attachment themselves
         getAttachments(emailData.files).then(function(attachments) {
+            console.log(attachments);
             deferred.resolve({})
         }, function(err) {
             console.error(err);
@@ -280,14 +276,20 @@ function subscribe(cb) {
 }
 
 // Begin subscription
-subscribe(function(err, message) {
-    sendEmails(message.data).then(function(status) {
-        rp('https://hchk.io/ccb41d9b-287f-4a8c-af43-8113aa0ccc34').then(function(htmlString) {
-            console.log('Email sent for ' + message.data)
-        }).catch(function(err) {
-            console.error(err);
-        });
-    }, function(err) {
-        console.error(err);
-    });
-});
+// subscribe(function(err, message) {
+//     sendEmails(message.data).then(function(status) {
+//         rp('https://hchk.io/ccb41d9b-287f-4a8c-af43-8113aa0ccc34').then(function(htmlString) {
+//             console.log('Email sent for ' + message.data)
+//         }).catch(function(err) {
+//             console.error(err);
+//         });
+//     }, function(err) {
+//         console.error(err);
+//     });
+// });
+
+sendEmails({EmailIds: [6703720767160320]}).then(function (resp){
+    console.log(resp);
+}, function (err) {
+    console.error(err);
+})
