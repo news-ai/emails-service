@@ -13,6 +13,8 @@ var datastore = require('@google-cloud/datastore')({
 });
 
 // Initialize Google Cloud
+var storage = gcloud.storage();
+var storageBucket = 'tabulae-email-attachment';
 var pubsub = gcloud.pubsub();
 var subscriptionName = 'appengine-flex-service-1'
 var topicName = 'tabulae-emails-service'
@@ -89,6 +91,46 @@ function getKeysFromRequestData(requestData, resouceType) {
      return deferred.promise;
  }
 
+function getAttachment(attachment) {
+    var deferred = Q.defer();
+    var bucket = storage.bucket(storageBucket);
+    var stream = bucket.file(attachment.data.FileName).createReadStream();
+
+    console.log(attachment);
+
+    // var file = {
+    //     name: attachment.data.FileName,
+    //     type: attachment.data.contentType,
+    //     data: data
+    // }
+
+    // var blob = bucket.file(attachment.data.FileName);
+    // var blobStream = blob.createWriteStream();
+
+    // blobStream.on('error', )
+
+    // bucket.file(attachment.data.FileName).download({
+
+    // }, function(err) {
+    //     console.error(err);
+    //     sentryClient.captureMessage(err);
+    //     deferred.reject(new Error(err));
+    // });
+
+    return deferred.promise;
+}
+
+function getAttachments(attachments) {
+    var allPromises = [];
+
+    for (var i = 0; i < attachments.length; i++) {
+        var toExecute = getAttachment(attachments[i]);
+        allPromises.push(toExecute);
+    }
+
+    return Q.all(allPromises);
+}
+
 function getEmails(data, resouceType) {
     var deferred = Q.defer();
     try {
@@ -110,25 +152,33 @@ function getEmails(data, resouceType) {
 
             getDatastore(userAttachmentKeys).then(function(userFileEntities) {
                 // Get billing
-                var userBillingId = 0;
+                var user = {};
+                var files = [];
                 for (var i = 0; i < userFileEntities.length; i++) {
                     if(userFileEntities[i].key.kind === 'User') {
-                        userBillingId = userFileEntities[i].data.BillingId;
+                        user = userFileEntities[i];
+                    } else {
+                        files.push(userFileEntities[i])
                     }
                 }
 
-                if (userBillingId === 0) {
+                if (user.data.BillingId === 0) {
                     var err = 'User Billing Id is missing for user: ' + userId;
                     console.error(err);
                     sentryClient.captureMessage(err);
                     deferred.reject(new Error(err));
                 } else {
                     var billingKeys = [];
-                    var billingId = datastore.key(['Billing', userBillingId]);
+                    var billingId = datastore.key(['Billing', user.data.BillingId]);
                     billingKeys.push(billingId);
 
                     getDatastore(billingKeys).then(function(billingEntities) {
-                        deferred.resolve([emails, userFileEntities, billingEntities]);
+                        deferred.resolve({
+                            emails: emails,
+                            user: user,
+                            billing: billingEntities,
+                            files: files
+                        });
                     }, function(err) {
                         console.error(err);
                         sentryClient.captureMessage(err);
@@ -166,14 +216,13 @@ function getTopic(currentTopicName, cb) {
 function sendEmails(data) {
     var deferred = Q.defer();
 
-    getEmails(data, 'Email').then(function(emailFileBilling) {
-        // Get emails, userFiles, and userBilling
-        var emails = emailFileBilling[0];
-        var userFiles = emailFileBilling[1];
-        var userBilling = emailFileBilling[2];
-
+    getEmails(data, 'Email').then(function(emailData) {
         // Get files of the attachment themselves
-        console.log(userBilling);
+        getAttachments(emailData.files).then(function(attachments) {
+            deferred.resolve({})
+        }, function(err) {
+            console.error(err);
+        });
     }, function(err) {
         console.error(err);
     })
