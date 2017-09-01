@@ -7,6 +7,9 @@ var gcloud = require('google-cloud')({
     projectId: 'newsai-1166'
 });
 
+// Import application specific
+var gmail = require('./providers/gmail')
+
 // Instantiate a datastore client
 var datastore = require('@google-cloud/datastore')({
     projectId: 'newsai-1166'
@@ -208,17 +211,59 @@ function getTopic(currentTopicName, cb) {
     });
 }
 
-function sendEmails(data) {
+function sendEmail(argument) {
+    if (emailMethod === 'gmail') {
+        // We already determined that the user has
+        // Gmail access through our platform
+        // when we set the 'method' of the email
+        gmail.sendEmail(sentryClient, emailData.user).then(function(response){
+            deferred.resolve({});
+        }, function(err) {
+            console.error(err);
+            deferred.resolve({});
+        });
+    } else if (emailMethod === 'sendgrid') {
+
+    } else if (emailMethod === 'outlook') {
+
+    } else if (emailMethod === 'smtp') {
+
+    } else {
+        continue;
+    }
+}
+
+function sendEmails(emailData, attachments) {
+    var deferred = Q.defer();
+
+    // Setup what we need for all these emails
+    var emails = emailData.emails;
+    var firstEmail = emails[0];
+    var emailMethod = firstEmail.data.Method;
+
+    // Setup promises for each of these emails
+    for (var i = 0; i < emails.length; i++) {
+        var email = emails[i].data;
+    }
+
+    return Q.all(allPromises);
+}
+
+function setupEmails(data) {
     var deferred = Q.defer();
 
     getEmails(data, 'Email').then(function(emailData) {
-        // Get files of the attachment themselves
-        getAttachments(emailData.files).then(function(attachments) {
-            console.log(attachments);
-            deferred.resolve({})
-        }, function(err) {
-            console.error(err);
-        });
+        // If couldn't lookup emails or there were no emails to send
+        if (emailData.emails.length === 0) {
+            deferred.resolve({});
+        } else {
+            // Get files of the attachment themselves
+            getAttachments(emailData.files).then(function(attachments) {
+                sendEmails(emailData, attachments)
+            }, function(err) {
+                console.error(err);
+            });
+        }
     }, function(err) {
         console.error(err);
     })
@@ -277,7 +322,7 @@ function subscribe(cb) {
 
 // Begin subscription
 // subscribe(function(err, message) {
-//     sendEmails(message.data).then(function(status) {
+//     setupEmails(message.data).then(function(status) {
 //         rp('https://hchk.io/ccb41d9b-287f-4a8c-af43-8113aa0ccc34').then(function(htmlString) {
 //             console.log('Email sent for ' + message.data)
 //         }).catch(function(err) {
@@ -288,7 +333,7 @@ function subscribe(cb) {
 //     });
 // });
 
-sendEmails({EmailIds: [6703720767160320]}).then(function (resp){
+setupEmails({EmailIds: [6703720767160320]}).then(function (resp){
     console.log(resp);
 }, function (err) {
     console.error(err);
