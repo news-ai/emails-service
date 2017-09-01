@@ -68,15 +68,59 @@ function validateAccessToken(sentryClient, user) {
     return deferred.promise;
 }
 
-function sendEmail(sentryClient, user) {
+function setupEmail(sentryClient, user) {
+    var deferred = Q.defer();
+
     validateAccessToken(sentryClient, user).then(function(newUser) {
         // Now we know that we have at least a single valid access token
-        console.log(newUser);
         deferred.resolve(newUser);
-    }, function(err){
+    }, function(err) {
         sentryClient.captureMessage(err);
         deferred.reject(err);
     });
+
+    return deferred.promise;
 }
 
+function sendEmail(sentryClient, email, user, userBilling, attachments) {
+    var userFullName = [user.data.FirstName, user.data.LastName].join(' ');
+    var emailFullName = [email.data.FirstName, email.data.LastName].join(' ');
+
+    var fromEmail = userFullName + '<' + user.data.Email + '>';
+    if (user.data.EmailAlias !== '') {
+        fromEmail = userFullName + '<' + user.data.EmailAlias + '>';
+    }
+
+    var nl = "\r\n";
+    var boundary = '__newsai_tabulae__';
+
+    var CC = [];
+    var BCC = [];
+
+    if (email && email.data && email.data.CC && email.data.CC.length > 0) {
+        CC = "Cc: " + email.data.CC.join(',') + nl;
+    }
+
+    if (email && email.data && email.data.BCC && email.data.BCC.length > 0) {
+        BCC = "Bcc: " + email.data.BCC.join(',') + nl;
+    }
+
+    var emailFormat = [];
+
+    // No attachments
+    if (attachments.length === 0) {
+        emailFormat = ["MIME-Version: 1.0", nl,
+            "To: ", to, nl,
+            CC,
+            BCC,
+            "From: ", fromEmail, ml,
+            "reply-to: ", fromEmail, nl,
+            "Subject: ", email.data.Subject, nl,
+            message
+        ];
+    }
+    // Attachments
+}
+
+gmail.setupEmail = setupEmail;
 gmail.sendEmail = sendEmail;

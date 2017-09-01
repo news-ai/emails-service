@@ -63,36 +63,36 @@ function getKeysFromRequestData(requestData, resouceType) {
  * @param {string} data.kind The Datastore kind of the data to retrieve, e.g. 'user'.
  * @param {string} data.key Key at which to retrieve the data, e.g. 5075192766267392.
  */
- function getDatastore(keys) {
-     var deferred = Q.defer();
-     try {
-         datastore.get(keys, function(err, entities) {
-             if (err) {
-                 console.error(err);
-                 sentryClient.captureMessage(err);
-                 deferred.reject(new Error(err));
-             }
+function getDatastore(keys) {
+    var deferred = Q.defer();
+    try {
+        datastore.get(keys, function(err, entities) {
+            if (err) {
+                console.error(err);
+                sentryClient.captureMessage(err);
+                deferred.reject(new Error(err));
+            }
 
-             // The get operation will not fail for a non-existent entities, it just
-             // returns null.
-             if (!entities) {
-                 var error = 'Entity does not exist';
-                 console.error(error);
-                 sentryClient.captureMessage(error);
-                 deferred.reject(new Error(error));
-             }
+            // The get operation will not fail for a non-existent entities, it just
+            // returns null.
+            if (!entities) {
+                var error = 'Entity does not exist';
+                console.error(error);
+                sentryClient.captureMessage(error);
+                deferred.reject(new Error(error));
+            }
 
-             deferred.resolve(entities);
-         });
+            deferred.resolve(entities);
+        });
 
-     } catch (err) {
-         console.error(err);
-         sentryClient.captureMessage(err);
-         deferred.reject(new Error(err));
-     }
+    } catch (err) {
+        console.error(err);
+        sentryClient.captureMessage(err);
+        deferred.reject(new Error(err));
+    }
 
-     return deferred.promise;
- }
+    return deferred.promise;
+}
 
 function getAttachment(attachment) {
     var deferred = Q.defer();
@@ -153,7 +153,7 @@ function getEmails(data, resouceType) {
                 var user = {};
                 var files = [];
                 for (var i = 0; i < userFileEntities.length; i++) {
-                    if(userFileEntities[i].key.kind === 'User') {
+                    if (userFileEntities[i].key.kind === 'User') {
                         user = userFileEntities[i];
                     } else {
                         files.push(userFileEntities[i])
@@ -211,16 +211,25 @@ function getTopic(currentTopicName, cb) {
     });
 }
 
-function sendEmail(argument) {
+function sendEmail(email, user, emailMethod, userBilling, attachments) {
+    var deferred = Q.defer();
+
     if (emailMethod === 'gmail') {
         // We already determined that the user has
         // Gmail access through our platform
         // when we set the 'method' of the email
-        gmail.sendEmail(sentryClient, emailData.user).then(function(response){
-            deferred.resolve({});
+        gmail.setupEmail(sentryClient, user).then(function(newUser) {
+            gmail.sendEmail(sentryClient, email, newUser, userBilling, attachments).then(function(response) {
+                deferred.resolve(response);
+            }, function(err) {
+                console.error(err);
+                sentryClient.captureMessage(err);
+                deferred.reject(err);
+            });
         }, function(err) {
             console.error(err);
-            deferred.resolve({});
+            sentryClient.captureMessage(err);
+            deferred.reject(err);
         });
     } else if (emailMethod === 'sendgrid') {
 
@@ -229,12 +238,15 @@ function sendEmail(argument) {
     } else if (emailMethod === 'smtp') {
 
     } else {
-        continue;
+        deferred.resolve({});
     }
+
+    return deferred.promise;
 }
 
 function sendEmails(emailData, attachments) {
     var deferred = Q.defer();
+    var allPromises = [];
 
     // Setup what we need for all these emails
     var emails = emailData.emails;
@@ -243,7 +255,8 @@ function sendEmails(emailData, attachments) {
 
     // Setup promises for each of these emails
     for (var i = 0; i < emails.length; i++) {
-        var email = emails[i].data;
+        var tempFunction = sendEmail(emails[i], emailData.user, emailMethod, emailData.billing, attachments);
+        allPromises.push(tempFunction);
     }
 
     return Q.all(allPromises);
@@ -259,14 +272,24 @@ function setupEmails(data) {
         } else {
             // Get files of the attachment themselves
             getAttachments(emailData.files).then(function(attachments) {
-                sendEmails(emailData, attachments)
+                sendEmails(emailData, attachments).then(function(response) {
+                    deferred.resolve(response);
+                }, function(err) {
+                    console.error(err);
+                    sentryClient.captureMessage(err);
+                    deferred.reject(err);
+                });
             }, function(err) {
                 console.error(err);
+                sentryClient.captureMessage(err);
+                deferred.reject(err);
             });
         }
     }, function(err) {
         console.error(err);
-    })
+        sentryClient.captureMessage(err);
+        deferred.reject(err);
+    });
 
     return deferred.promise;
 }
@@ -333,8 +356,10 @@ function subscribe(cb) {
 //     });
 // });
 
-setupEmails({EmailIds: [6703720767160320]}).then(function (resp){
+setupEmails({
+    EmailIds: [6703720767160320]
+}).then(function(resp) {
     console.log(resp);
-}, function (err) {
+}, function(err) {
     console.error(err);
 })
