@@ -10,6 +10,7 @@ var gcloud = require('google-cloud')({
 // Import application specific
 var gmail = require('./providers/gmail');
 var sendgrid = require('./providers/sendgrid');
+var outlook = require('./providers/outlook');
 
 // Instantiate a datastore client
 var datastore = require('@google-cloud/datastore')({
@@ -243,7 +244,19 @@ function sendEmail(email, user, emailMethod, userBilling, attachments) {
             deferred.reject(err);
         });
     } else if (emailMethod === 'outlook') {
-
+        outlook.setupEmail(sentryClient, user).then(function(newUser) {
+            outlook.sendEmail(sentryClient, email, newUser, userBilling, attachments).then(function(response) {
+                deferred.resolve(response);
+            }, function(err) {
+                console.error(err);
+                sentryClient.captureMessage(err);
+                deferred.reject(err);
+            });
+        }, function(err) {
+            console.error(err);
+            sentryClient.captureMessage(err);
+            deferred.reject(err);
+        });
     } else if (emailMethod === 'smtp') {
 
     } else {
@@ -367,7 +380,7 @@ function subscribe(cb) {
 // });
 
 setupEmails({
-    EmailIds: [5194829768163328]
+    EmailIds: [5659951909306368]
 }).then(function(resp) {
     console.log(resp);
 }, function(err) {
