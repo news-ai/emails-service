@@ -108,7 +108,7 @@ function getAttachment(attachment) {
         fileContents = Buffer.concat([fileContents, chunk]);
     }).on('end', function() {
         bucketFile.get(function(err, fileData, apiResponse) {
-            // file.metadata` has been populated.
+            // file.metadata has been populated.
             var file = {
                 name: attachment.data.OriginalName,
                 type: fileData.metadata.contentType,
@@ -150,6 +150,28 @@ function getSMTPEmailSettings(user) {
         sentryClient.captureMessage(err);
         deferred.reject(new Error(err));
     });
+
+    return deferred.promise;
+}
+
+function sendToUpdateService(updates) {
+    var deferred = Q.defer();
+
+    var options = {
+        method: 'POST',
+        uri: 'https://updates-dot-newsai-1166.appspot.com/updates',
+        json: updates
+    };
+
+    rp(options)
+        .then(function(jsonBody) {
+            deferred.resolve(jsonBody);
+        })
+        .catch(function(err) {
+            // If there's problems even getting a new access token
+            sentryClient.captureMessage(err);
+            deferred.reject(new Error(err));
+        });
 
     return deferred.promise;
 }
@@ -247,11 +269,11 @@ function sendEmail(email, user, emailMethod, userBilling, attachments) {
     // so we can send that to updates-service
     var returnEmailResponse = {
         method: emailMethod,
-        delievered: false,
+        delivered: false,
 
-        emailId: email.key.id,
-        threadId: '',
-        sendId: ''
+        emailid: email.key.id,
+        threadid: '',
+        sendid: ''
     };
 
     if (emailMethod === 'gmail') {
@@ -260,9 +282,9 @@ function sendEmail(email, user, emailMethod, userBilling, attachments) {
         // when we set the 'method' of the email
         gmail.setupEmail(sentryClient, user).then(function(newUser) {
             gmail.sendEmail(sentryClient, email, newUser, userBilling, attachments).then(function(response) {
-                returnEmailResponse.sendId = response.id;
-                returnEmailResponse.threadId = response.threadId
-                returnEmailResponse.delievered = true;
+                returnEmailResponse.sendid = response.id;
+                returnEmailResponse.threadid = response.threadId
+                returnEmailResponse.delivered = true;
                 deferred.resolve(returnEmailResponse);
             }, function(err) {
                 console.error(err);
@@ -276,8 +298,8 @@ function sendEmail(email, user, emailMethod, userBilling, attachments) {
         });
     } else if (emailMethod === 'sendgrid') {
         sendgrid.sendEmail(sentryClient, email, user, userBilling, attachments).then(function(response) {
-            returnEmailResponse.delevered = true;
-            returnEmailResponse.emailId = response.emailId;
+            returnEmailResponse.delivered = true;
+            returnEmailResponse.sendid = response.emailId;
             deferred.resolve(returnEmailResponse);
         }, function(err) {
             console.error(err);
@@ -287,7 +309,7 @@ function sendEmail(email, user, emailMethod, userBilling, attachments) {
     } else if (emailMethod === 'outlook') {
         outlook.setupEmail(sentryClient, user).then(function(newUser) {
             outlook.sendEmail(sentryClient, email, newUser, userBilling, attachments).then(function(response) {
-                returnEmailResponse.delevered = true;
+                returnEmailResponse.delivered = true;
                 deferred.resolve(returnEmailResponse);
             }, function(err) {
                 console.error(err);
@@ -302,7 +324,7 @@ function sendEmail(email, user, emailMethod, userBilling, attachments) {
     } else if (emailMethod === 'smtp') {
         getSMTPEmailSettings(user).then(function(emailSetting) {
             smtp.sendEmail(sentryClient, email, user, userBilling, attachments, emailSetting).then(function(response) {
-                returnEmailResponse.delievered = response.status;
+                returnEmailResponse.delivered = response.status;
                 deferred.resolve(returnEmailResponse);
             }, function(err) {
                 console.error(err);
@@ -351,8 +373,13 @@ function setupEmails(data) {
             // Get files of the attachment themselves
             getAttachments(emailData.files).then(function(attachments) {
                 sendEmails(emailData, attachments).then(function(responses) {
-                    console.log(responses);
-                    deferred.resolve(responses);
+                    sendToUpdateService(responses).then(function(status) {
+                        deferred.resolve(status);
+                    }, function(err) {
+                        console.error(err);
+                        sentryClient.captureMessage(err);
+                        deferred.reject(err);
+                    });
                 }, function(err) {
                     console.error(err);
                     sentryClient.captureMessage(err);
