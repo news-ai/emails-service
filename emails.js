@@ -143,9 +143,11 @@ function getEmails(data, resouceType) {
             userAttachmentKeys.push(userId);
 
             // Get files
-            for (var i = 0; i < singleEmailData.Attachments.length; i++) {
-                var fileId = datastore.key(['File', singleEmailData.Attachments[i]]);
-                userAttachmentKeys.push(fileId);
+            if (singleEmailData.Attachments) {
+                for (var i = 0; i < singleEmailData.Attachments.length; i++) {
+                    var fileId = datastore.key(['File', singleEmailData.Attachments[i]]);
+                    userAttachmentKeys.push(fileId);
+                }
             }
 
             getDatastore(userAttachmentKeys).then(function(userFileEntities) {
@@ -238,6 +240,7 @@ function sendEmail(email, user, emailMethod, userBilling, attachments) {
     } else if (emailMethod === 'smtp') {
 
     } else {
+        console.error('No email method present');
         deferred.resolve({});
     }
 
@@ -362,4 +365,4 @@ setupEmails({
     console.log(resp);
 }, function(err) {
     console.error(err);
-})
+});
