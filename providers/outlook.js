@@ -121,13 +121,9 @@ function sendEmail(sentryClient, email, user, userBilling, attachments) {
     }
 
     var options = {
-        url: 'https://outlook.office.com/api/v2.0/me/sendmail',
+        uri: 'https://outlook.office.com/api/v2.0/me/sendmail',
         method: 'POST',
-        json: message,
-        headers: {
-            'Authorization': 'Bearer ' + user.data.OutlookAccessToken,
-            'Content-Type': 'application/json'
-        }
+        json: message
     };
 
     rp(options)
