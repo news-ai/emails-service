@@ -243,13 +243,27 @@ function getTopic(currentTopicName, cb) {
 function sendEmail(email, user, emailMethod, userBilling, attachments) {
     var deferred = Q.defer();
 
+    // What we want to send back to the sendEmails function
+    // so we can send that to updates-service
+    var returnEmailResponse = {
+        method: emailMethod,
+        delievered: false,
+
+        emailId: email.key.id,
+        threadId: '',
+        sendId: ''
+    };
+
     if (emailMethod === 'gmail') {
         // We already determined that the user has
         // Gmail access through our platform
         // when we set the 'method' of the email
         gmail.setupEmail(sentryClient, user).then(function(newUser) {
             gmail.sendEmail(sentryClient, email, newUser, userBilling, attachments).then(function(response) {
-                deferred.resolve(response);
+                returnEmailResponse.sendId = response.id;
+                returnEmailResponse.threadId = response.threadId
+                returnEmailResponse.delievered = true;
+                deferred.resolve(returnEmailResponse);
             }, function(err) {
                 console.error(err);
                 sentryClient.captureMessage(err);
@@ -262,7 +276,9 @@ function sendEmail(email, user, emailMethod, userBilling, attachments) {
         });
     } else if (emailMethod === 'sendgrid') {
         sendgrid.sendEmail(sentryClient, email, user, userBilling, attachments).then(function(response) {
-            deferred.resolve(response);
+            returnEmailResponse.delevered = true;
+            returnEmailResponse.emailId = response.emailId;
+            deferred.resolve(returnEmailResponse);
         }, function(err) {
             console.error(err);
             sentryClient.captureMessage(err);
@@ -271,7 +287,8 @@ function sendEmail(email, user, emailMethod, userBilling, attachments) {
     } else if (emailMethod === 'outlook') {
         outlook.setupEmail(sentryClient, user).then(function(newUser) {
             outlook.sendEmail(sentryClient, email, newUser, userBilling, attachments).then(function(response) {
-                deferred.resolve(response);
+                returnEmailResponse.delevered = true;
+                deferred.resolve(returnEmailResponse);
             }, function(err) {
                 console.error(err);
                 sentryClient.captureMessage(err);
@@ -285,7 +302,8 @@ function sendEmail(email, user, emailMethod, userBilling, attachments) {
     } else if (emailMethod === 'smtp') {
         getSMTPEmailSettings(user).then(function(emailSetting) {
             smtp.sendEmail(sentryClient, email, user, userBilling, attachments, emailSetting).then(function(response) {
-                deferred.resolve(response);
+                returnEmailResponse.delievered = response.status;
+                deferred.resolve(returnEmailResponse);
             }, function(err) {
                 console.error(err);
                 sentryClient.captureMessage(err);
@@ -332,8 +350,9 @@ function setupEmails(data) {
         } else {
             // Get files of the attachment themselves
             getAttachments(emailData.files).then(function(attachments) {
-                sendEmails(emailData, attachments).then(function(response) {
-                    deferred.resolve(response);
+                sendEmails(emailData, attachments).then(function(responses) {
+                    console.log(responses);
+                    deferred.resolve(responses);
                 }, function(err) {
                     console.error(err);
                     sentryClient.captureMessage(err);
@@ -404,22 +423,14 @@ function subscribe(cb) {
 }
 
 // Begin subscription
-// subscribe(function(err, message) {
-//     setupEmails(message.data).then(function(status) {
-//         rp('https://hchk.io/ccb41d9b-287f-4a8c-af43-8113aa0ccc34').then(function(htmlString) {
-//             console.log('Email sent for ' + message.data)
-//         }).catch(function(err) {
-//             console.error(err);
-//         });
-//     }, function(err) {
-//         console.error(err);
-//     });
-// });
-
-setupEmails({
-    EmailIds: [5642453138800640]
-}).then(function(resp) {
-    console.log(resp);
-}, function(err) {
-    console.error(err);
+subscribe(function(err, message) {
+    setupEmails(message.data).then(function(status) {
+        rp('https://hchk.io/ccb41d9b-287f-4a8c-af43-8113aa0ccc34').then(function(htmlString) {
+            console.log('Email sent for ' + message.data.EmailIds)
+        }).catch(function(err) {
+            console.error(err);
+        });
+    }, function(err) {
+        console.error(err);
+    });
 });

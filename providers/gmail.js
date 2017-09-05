@@ -109,7 +109,6 @@ function sendEmail(sentryClient, email, user, userBilling, attachments) {
 
     rp(options)
         .then(function(jsonBody) {
-            console.log(jsonBody);
             deferred.resolve(jsonBody);
         })
         .catch(function(err) {
