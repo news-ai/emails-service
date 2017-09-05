@@ -8,7 +8,8 @@ var gcloud = require('google-cloud')({
 });
 
 // Import application specific
-var gmail = require('./providers/gmail')
+var gmail = require('./providers/gmail');
+var sendgrid = require('./providers/sendgrid');
 
 // Instantiate a datastore client
 var datastore = require('@google-cloud/datastore')({
@@ -234,7 +235,13 @@ function sendEmail(email, user, emailMethod, userBilling, attachments) {
             deferred.reject(err);
         });
     } else if (emailMethod === 'sendgrid') {
-
+        sendgrid.sendEmail(sentryClient, email, user, userBilling, attachments).then(function(response) {
+            deferred.resolve(response);
+        }, function(err) {
+            console.error(err);
+            sentryClient.captureMessage(err);
+            deferred.reject(err);
+        });
     } else if (emailMethod === 'outlook') {
 
     } else if (emailMethod === 'smtp') {
@@ -360,7 +367,7 @@ function subscribe(cb) {
 // });
 
 setupEmails({
-    EmailIds: [6703720767160320]
+    EmailIds: [5194829768163328]
 }).then(function(resp) {
     console.log(resp);
 }, function(err) {

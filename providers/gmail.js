@@ -188,6 +188,7 @@ function sendEmail(sentryClient, email, user, userBilling, attachments) {
             sentryClient.captureMessage(err);
             deferred.reject(new Error(err));
         });
+
     return deferred.promise;
 }
 
