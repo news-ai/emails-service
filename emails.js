@@ -11,6 +11,7 @@ var gcloud = require('google-cloud')({
 var gmail = require('./providers/gmail');
 var sendgrid = require('./providers/sendgrid');
 var outlook = require('./providers/outlook');
+var smtp = require('./providers/smtp');
 
 // Instantiate a datastore client
 var datastore = require('@google-cloud/datastore')({
@@ -131,6 +132,28 @@ function getAttachments(attachments) {
     return Q.all(allPromises);
 }
 
+function getSMTPEmailSettings(user) {
+    var deferred = Q.defer();
+
+    var emailSettingId = datastore.key(['EmailSetting', user.data.EmailSetting]);
+    getDatastore([emailSettingId]).then(function(emailSettings) {
+        if (emailSettings.length === 0) {
+            var err = 'No email setting id present for the user: ' + user.key
+            console.error(err);
+            sentryClient.captureMessage(err);
+            deferred.reject(new Error(err));
+        }
+
+        deferred.resolve(emailSettings[0]);
+    }, function(err) {
+        console.error(err);
+        sentryClient.captureMessage(err);
+        deferred.reject(new Error(err));
+    });
+
+    return deferred.promise;
+}
+
 function getEmails(data, resouceType) {
     var deferred = Q.defer();
     try {
@@ -193,7 +216,9 @@ function getEmails(data, resouceType) {
                 deferred.reject(new Error(err));
             });
         }, function(err) {
-
+            console.error(err);
+            sentryClient.captureMessage(err);
+            deferred.reject(new Error(err));
         });
     } catch (err) {
         console.error(err);
@@ -258,7 +283,19 @@ function sendEmail(email, user, emailMethod, userBilling, attachments) {
             deferred.reject(err);
         });
     } else if (emailMethod === 'smtp') {
-
+        getSMTPEmailSettings(user).then(function(emailSetting) {
+            smtp.sendEmail(sentryClient, email, user, userBilling, attachments, emailSetting).then(function(response) {
+                deferred.resolve(response);
+            }, function(err) {
+                console.error(err);
+                sentryClient.captureMessage(err);
+                deferred.reject(err);
+            });
+        }, function(err) {
+            console.error(err);
+            sentryClient.captureMessage(err);
+            deferred.reject(err);
+        });
     } else {
         console.error('No email method present');
         deferred.resolve({});
@@ -380,7 +417,7 @@ function subscribe(cb) {
 // });
 
 setupEmails({
-    EmailIds: [5659951909306368]
+    EmailIds: [5642453138800640]
 }).then(function(resp) {
     console.log(resp);
 }, function(err) {
