@@ -370,13 +370,48 @@ function splitEmailsUsingRedis(emailData, attachments, emailMethod, numberSent) 
     // 3. Send all using email provider since we haven't used it yet
     if (numberSent > dailyMaximum) {
         // Send using Sendgrid
+        // Setup promise to send using sendgrid
         var tempFunction = sendEmailsAndSendToUpdateService(emailData, attachments, 'sendgrid');
         allPromises.push(tempFunction);
     } else if (postSendingAmount > dailyMaximum) {
+        // Number of emails sent + number of emails going to send is more
+        // than what we should be sending today then:
         // Send using both email provider and sendgrid
+        var providerAmountLeft = numberSent - emailData.emails.length;
+
+        // These are what we'll use in sending out the 2 email promises
+        var emails = emailData.emails;
+        var emailProviderEmailData = emailData;
+        var sendgridEmailData = emailData;
+
+        // We want to split the emailProviderEmailData.emails array
+        // into 2. No duplicates between emailProviderEmailData and
+        // sendgridEmailData
+        emailProviderEmailData.emails = emails.slice(0, providerAmountLeft);
+        sendgridEmailData.emails = emails.slice(providerAmountLeft, emails.length);
+
+        // Split into 2 arrays: one for email provider, one for sendgrid
+        // 1. Send from email provider
+        if (emailProviderEmailData.emails.length > 0) {
+            // Update the number we're sending from email provider
+            sentFromEmailProvider = emailProviderEmailData.emails.length;
+
+            // Setup promise to send using email provider
+            var tempFunctionEmailProvider = sendEmailsAndSendToUpdateService(emailProviderEmailData, attachments, emailMethod);
+            allPromises.push(tempFunctionEmailProvider);
+        }
+
+        // 2. Send from sendgrid
+        if (sendgridEmailData.emails.length > 0) {
+            // Setup promise to send using sendgrid
+            var tempFunctionSendgrid = sendEmailsAndSendToUpdateService(sendgridEmailData, attachments, 'sendgrid');
+            allPromises.push(tempFunctionSendgrid);
+        }
     } else {
         // Send purely using email provider
         sentFromEmailProvider = emailData.emails.length;
+
+        // Setup promise to send using email provider
         var tempFunction = sendEmailsAndSendToUpdateService(emailData, attachments, emailMethod);
         allPromises.push(tempFunction);
     }
