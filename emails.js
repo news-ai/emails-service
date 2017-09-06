@@ -71,8 +71,6 @@ function getDatastore(keys) {
     try {
         datastore.get(keys, function(err, entities) {
             if (err) {
-                console.error(err);
-                sentryClient.captureMessage(err);
                 deferred.reject(new Error(err));
             }
 
@@ -80,8 +78,6 @@ function getDatastore(keys) {
             // returns null.
             if (!entities) {
                 var error = 'Entity does not exist';
-                console.error(error);
-                sentryClient.captureMessage(error);
                 deferred.reject(new Error(error));
             }
 
@@ -89,8 +85,6 @@ function getDatastore(keys) {
         });
 
     } catch (err) {
-        console.error(err);
-        sentryClient.captureMessage(err);
         deferred.reject(new Error(err));
     }
 
@@ -139,16 +133,12 @@ function getSMTPEmailSettings(user) {
     getDatastore([emailSettingId]).then(function(emailSettings) {
         if (emailSettings.length === 0) {
             var err = 'No email setting id present for the user: ' + user.key
-            console.error(err);
-            sentryClient.captureMessage(err);
             deferred.reject(new Error(err));
         }
 
         deferred.resolve(emailSettings[0]);
     }, function(err) {
-        console.error(err);
-        sentryClient.captureMessage(err);
-        deferred.reject(new Error(err));
+        deferred.reject(err);
     });
 
     return deferred.promise;
@@ -169,7 +159,6 @@ function sendToUpdateService(updates) {
         })
         .catch(function(err) {
             // If there's problems even getting a new access token
-            sentryClient.captureMessage(err);
             deferred.reject(new Error(err));
         });
 
@@ -227,24 +216,16 @@ function getEmails(data, resouceType) {
                             files: files
                         });
                     }, function(err) {
-                        console.error(err);
-                        sentryClient.captureMessage(err);
-                        deferred.reject(new Error(err));
+                        deferred.reject(err);
                     });
                 }
             }, function(err) {
-                console.error(err);
-                sentryClient.captureMessage(err);
-                deferred.reject(new Error(err));
+                deferred.reject(err));
             });
         }, function(err) {
-            console.error(err);
-            sentryClient.captureMessage(err);
-            deferred.reject(new Error(err));
+            deferred.reject(err);
         });
     } catch (err) {
-        console.error(err);
-        sentryClient.captureMessage(err);
         deferred.reject(new Error(err));
     }
 
@@ -287,8 +268,6 @@ function sendEmail(email, user, emailMethod, userBilling, attachments) {
                 returnEmailResponse.delivered = true;
                 deferred.resolve(returnEmailResponse);
             }, function(err) {
-                console.error(err);
-                sentryClient.captureMessage(err);
                 deferred.reject(err);
             });
         }, function(err) {
@@ -302,8 +281,6 @@ function sendEmail(email, user, emailMethod, userBilling, attachments) {
             returnEmailResponse.sendid = response.emailId;
             deferred.resolve(returnEmailResponse);
         }, function(err) {
-            console.error(err);
-            sentryClient.captureMessage(err);
             deferred.reject(err);
         });
     } else if (emailMethod === 'outlook') {
@@ -312,13 +289,9 @@ function sendEmail(email, user, emailMethod, userBilling, attachments) {
                 returnEmailResponse.delivered = true;
                 deferred.resolve(returnEmailResponse);
             }, function(err) {
-                console.error(err);
-                sentryClient.captureMessage(err);
                 deferred.reject(err);
             });
         }, function(err) {
-            console.error(err);
-            sentryClient.captureMessage(err);
             deferred.reject(err);
         });
     } else if (emailMethod === 'smtp') {
@@ -327,13 +300,9 @@ function sendEmail(email, user, emailMethod, userBilling, attachments) {
                 returnEmailResponse.delivered = response.status;
                 deferred.resolve(returnEmailResponse);
             }, function(err) {
-                console.error(err);
-                sentryClient.captureMessage(err);
                 deferred.reject(err);
             });
         }, function(err) {
-            console.error(err);
-            sentryClient.captureMessage(err);
             deferred.reject(err);
         });
     } else {

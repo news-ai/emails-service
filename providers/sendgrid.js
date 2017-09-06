@@ -69,7 +69,6 @@ function sendEmail(sentryClient, email, user, userBilling, attachments) {
         }
         deferred.resolve(emailIdObject);
     }).catch(function(err) {
-        sentryClient.captureMessage(err);
         deferred.reject(new Error(err));
     });
 

@@ -35,7 +35,6 @@ function refreshAccessToken(sentryClient, user) {
         })
         .catch(function(err) {
             // If there's problems even getting a new access token
-            sentryClient.captureMessage(err);
             deferred.reject(new Error(err));
         });
 
@@ -61,7 +60,6 @@ function validateAccessToken(sentryClient, user) {
             refreshAccessToken(sentryClient, user).then(function(newUser) {
                 deferred.resolve(newUser);
             }, function(err) {
-                sentryClient.captureMessage(err);
                 deferred.reject(err);
             })
         });
@@ -76,7 +74,6 @@ function setupEmail(sentryClient, user) {
         // Now we know that we have at least a single valid access token
         deferred.resolve(newUser);
     }, function(err) {
-        sentryClient.captureMessage(err);
         deferred.reject(err);
     });
 
@@ -112,8 +109,6 @@ function sendEmail(sentryClient, email, user, userBilling, attachments) {
             deferred.resolve(jsonBody);
         })
         .catch(function(err) {
-            // If there's problems even getting a new access token
-            sentryClient.captureMessage(err);
             deferred.reject(new Error(err));
         });
 

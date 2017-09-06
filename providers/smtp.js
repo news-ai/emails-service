@@ -33,8 +33,6 @@ function sendEmail(sentryClient, email, user, userBilling, attachments, emailSet
             deferred.resolve(jsonBody);
         })
         .catch(function(err) {
-            // If there's problems even getting a new access token
-            sentryClient.captureMessage(err);
             deferred.reject(new Error(err));
         });
 
