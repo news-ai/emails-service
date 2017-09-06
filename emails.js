@@ -3,6 +3,7 @@
 var raven = require('raven');
 var Q = require('q');
 var rp = require('request-promise');
+var redis = require('redis');
 var gcloud = require('google-cloud')({
     projectId: 'newsai-1166'
 });
@@ -24,6 +25,9 @@ var storageBucket = 'tabulae-email-attachment';
 var pubsub = gcloud.pubsub();
 var subscriptionName = 'appengine-flex-service-1';
 var topicName = 'tabulae-emails-service';
+
+// Instantiate a redis client
+var client = redis.createClient();
 
 // Initialize Sentry
 var sentryClient = new raven.Client('https://86fa2a75d816431a930f9403613bb8b0:20ffd70440344532ab20fd18c3b998eb@sentry.io/211180');
@@ -332,22 +336,61 @@ function sendEmailsAndSendToUpdateService(emailData, attachments, emailMethod) {
         sendToUpdateService(responses).then(function(status) {
             deferred.resolve(status);
         }, function(err) {
-            console.error(err);
-            sentryClient.captureMessage(err);
             deferred.reject(err);
         });
     }, function(err) {
-        console.error(err);
-        sentryClient.captureMessage(err);
         deferred.reject(err);
     });
 
     return deferred.promise;
 }
 
-function splitEmailsForCorrectProviders(emailData, attachments) {
+function maximumSentForEmailMethod(emailMethod) {
+    if (emailMethod === 'gmail') {
+        return 500;
+    } else if (emailMethod === 'outlook') {
+        return 300;
+    } else if (emailMethod === 'smtp') {
+        return 300;
+    }
+    return 1000;
+}
+
+function splitEmailsUsingRedis(emailData, attachments, emailMethod, numberSent) {
     var deferred = Q.defer();
     var allPromises = [];
+    var dailyMaximum = maximumSentForEmailMethod(emailMethod);
+    var redisKey = emailData.user.key.id.toString() + '_' + emailMethod;
+    var postSendingAmount = numberSent + emailData.emails.length;
+    var sentFromEmailProvider = 0;
+
+    // 3 cases:
+    // 1. Send all using Sendgrid since we've already emptied it out
+    // 2. Send some using Sendgrid and some using email provider
+    // 3. Send all using email provider since we haven't used it yet
+    if (numberSent > dailyMaximum) {
+        // Send using Sendgrid
+        var tempFunction = sendEmailsAndSendToUpdateService(emailData, attachments, 'sendgrid');
+        allPromises.push(tempFunction);
+    } else if (postSendingAmount > dailyMaximum) {
+        // Send using both email provider and sendgrid
+    } else {
+        // Send purely using email provider
+        sentFromEmailProvider = emailData.emails.length;
+        var tempFunction = sendEmailsAndSendToUpdateService(emailData, attachments, emailMethod);
+        allPromises.push(tempFunction);
+    }
+
+    // Update in redis how many emails were sent using that email provider
+    var d = new Date();
+    var secondsLeft = (24*60*60) - (d.getHours()*60*60) - (d.getMinutes()*60) - d.getSeconds();
+    client.set(redisKey, numberSent+sentFromEmailProvider, 'EX', secondsLeft);
+
+    return Q.all(allPromises);
+}
+
+function splitEmailsForCorrectProviders(emailData, attachments) {
+    var deferred = Q.defer();
 
     // Setup what we need for all these emails
     var emails = emailData.emails;
@@ -355,14 +398,28 @@ function splitEmailsForCorrectProviders(emailData, attachments) {
     var emailMethod = firstEmail.data.Method;
 
     if (emailMethod === 'sendgrid') {
-        var tempFunction = sendEmailsAndSendToUpdateService(emailData, attachments, emailMethod);
-        allPromises.push(tempFunction);
+        // If sendgrid then send the emails directly
+        sendEmailsAndSendToUpdateService(emailData, attachments, emailMethod).then(function(status) {
+            deferred.resolve(status);
+        }, function(err) {
+            deferred.reject(err);
+        });
     } else {
-        var tempFunction = sendEmailsAndSendToUpdateService(emailData, attachments, emailMethod);
-        allPromises.push(tempFunction);
+        // Check redis for how many emails have been sent for that particular emailMethod today
+        var redisKey = emailData.user.key.id.toString() + '_' + emailMethod;
+        client.get(redisKey, function(err, numberSent) {
+            if (!numberSent) {
+                numberSent = 0;
+            }
+            splitEmailsUsingRedis(emailData, attachments, emailMethod, numberSent).then(function(status) {
+                deferred.resolve(status);
+            }, function(err) {
+                deferred.reject(err);
+            });
+        }
     }
 
-    return Q.all(allPromises);
+    return deferred.promise;
 }
 
 function setupEmails(data) {
