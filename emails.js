@@ -309,7 +309,43 @@ function sendEmail(email, user, emailMethod, userBilling, attachments) {
     return deferred.promise;
 }
 
-function sendEmails(emailData, attachments) {
+function sendEmails(emailData, attachments, emailMethod) {
+    var deferred = Q.defer();
+    var allPromises = [];
+
+    // Setup what we need for all these emails
+    var emails = emailData.emails;
+
+    // Setup promises for each of these emails
+    for (var i = 0; i < emails.length; i++) {
+        var tempFunction = sendEmail(emails[i], emailData.user, emailMethod, emailData.billing, attachments);
+        allPromises.push(tempFunction);
+    }
+
+    return Q.all(allPromises);
+}
+
+function sendEmailsAndSendToUpdateService(emailData, attachments, emailMethod) {
+    var deferred = Q.defer();
+
+    sendEmails(emailData, attachments, emailMethod).then(function(responses) {
+        sendToUpdateService(responses).then(function(status) {
+            deferred.resolve(status);
+        }, function(err) {
+            console.error(err);
+            sentryClient.captureMessage(err);
+            deferred.reject(err);
+        });
+    }, function(err) {
+        console.error(err);
+        sentryClient.captureMessage(err);
+        deferred.reject(err);
+    });
+
+    return deferred.promise;
+}
+
+function splitEmailsForCorrectProviders(emailData, attachments) {
     var deferred = Q.defer();
     var allPromises = [];
 
@@ -318,9 +354,8 @@ function sendEmails(emailData, attachments) {
     var firstEmail = emails[0];
     var emailMethod = firstEmail.data.Method;
 
-    // Setup promises for each of these emails
-    for (var i = 0; i < emails.length; i++) {
-        var tempFunction = sendEmail(emails[i], emailData.user, emailMethod, emailData.billing, attachments);
+    if (emailMethod === 'sendgrid') {
+        var tempFunction = sendEmailsAndSendToUpdateService(emailData, attachments, emailMethod);
         allPromises.push(tempFunction);
     }
 
@@ -337,14 +372,8 @@ function setupEmails(data) {
         } else {
             // Get files of the attachment themselves
             getAttachments(emailData.files).then(function(attachments) {
-                sendEmails(emailData, attachments).then(function(responses) {
-                    sendToUpdateService(responses).then(function(status) {
-                        deferred.resolve(status);
-                    }, function(err) {
-                        console.error(err);
-                        sentryClient.captureMessage(err);
-                        deferred.reject(err);
-                    });
+                splitEmailsForCorrectProviders(emailData, attachments).then(function(status) {
+                    deferred.resolve(status);
                 }, function(err) {
                     console.error(err);
                     sentryClient.captureMessage(err);
