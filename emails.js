@@ -22,8 +22,8 @@ var datastore = require('@google-cloud/datastore')({
 var storage = gcloud.storage();
 var storageBucket = 'tabulae-email-attachment';
 var pubsub = gcloud.pubsub();
-var subscriptionName = 'appengine-flex-service-1'
-var topicName = 'tabulae-emails-service'
+var subscriptionName = 'appengine-flex-service-1';
+var topicName = 'tabulae-emails-service';
 
 // Initialize Sentry
 var sentryClient = new raven.Client('https://86fa2a75d816431a930f9403613bb8b0:20ffd70440344532ab20fd18c3b998eb@sentry.io/211180');
@@ -132,7 +132,7 @@ function getSMTPEmailSettings(user) {
     var emailSettingId = datastore.key(['EmailSetting', user.data.EmailSetting]);
     getDatastore([emailSettingId]).then(function(emailSettings) {
         if (emailSettings.length === 0) {
-            var err = 'No email setting id present for the user: ' + user.key
+            var err = 'No email setting id present for the user: ' + user.key;
             deferred.reject(new Error(err));
         }
 
@@ -200,8 +200,6 @@ function getEmails(data, resouceType) {
 
                 if (user.data.BillingId === 0) {
                     var err = 'User Billing Id is missing for user: ' + userId;
-                    console.error(err);
-                    sentryClient.captureMessage(err);
                     deferred.reject(new Error(err));
                 } else {
                     var billingKeys = [];
@@ -271,8 +269,6 @@ function sendEmail(email, user, emailMethod, userBilling, attachments) {
                 deferred.reject(err);
             });
         }, function(err) {
-            console.error(err);
-            sentryClient.captureMessage(err);
             deferred.reject(err);
         });
     } else if (emailMethod === 'sendgrid') {
@@ -422,7 +418,7 @@ function subscribe(cb) {
 subscribe(function(err, message) {
     setupEmails(message.data).then(function(status) {
         rp('https://hchk.io/ccb41d9b-287f-4a8c-af43-8113aa0ccc34').then(function(htmlString) {
-            console.log('Email sent for ' + message.data.EmailIds)
+            console.log('Email sent for ' + message.data.EmailIds);
         }).catch(function(err) {
             console.error(err);
         });
