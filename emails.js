@@ -218,7 +218,7 @@ function getEmails(data, resouceType) {
                     });
                 }
             }, function(err) {
-                deferred.reject(err));
+                deferred.reject(err);
             });
         }, function(err) {
             deferred.reject(err);
