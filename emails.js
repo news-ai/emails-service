@@ -347,7 +347,7 @@ function sendEmailsAndSendToUpdateService(emailData, attachments, emailMethod) {
 
 function maximumSentForEmailMethod(emailMethod) {
     if (emailMethod === 'gmail') {
-        return 500;
+        return 41;
     } else if (emailMethod === 'outlook') {
         return 300;
     } else if (emailMethod === 'smtp') {
@@ -377,18 +377,26 @@ function splitEmailsUsingRedis(emailData, attachments, emailMethod, numberSent) 
         // Number of emails sent + number of emails going to send is more
         // than what we should be sending today then:
         // Send using both email provider and sendgrid
-        var providerAmountLeft = numberSent - emailData.emails.length;
+        var providerAmountLeft = dailyMaximum - numberSent;
 
         // These are what we'll use in sending out the 2 email promises
-        var emails = emailData.emails;
-        var emailProviderEmailData = emailData;
-        var sendgridEmailData = emailData;
+        var emailProviderEmailData = Object.assign({}, emailData);
+        var sendgridEmailData = Object.assign({}, emailData);
+
+        emailProviderEmailData.emails = [];
+        sendgridEmailData.emails = [];
 
         // We want to split the emailProviderEmailData.emails array
         // into 2. No duplicates between emailProviderEmailData and
         // sendgridEmailData
-        emailProviderEmailData.emails = emails.slice(0, providerAmountLeft);
-        sendgridEmailData.emails = emails.slice(providerAmountLeft, emails.length);
+        var splitOne = emailData.emails.slice(0, providerAmountLeft);
+        var splitTwo = emailData.emails.slice(providerAmountLeft);
+
+        emailProviderEmailData.emails = splitOne;
+        sendgridEmailData.emails = splitTwo;
+
+        console.log(emailProviderEmailData.emails.length);
+        console.log(sendgridEmailData.emails.length);
 
         // Split into 2 arrays: one for email provider, one for sendgrid
         // 1. Send from email provider
@@ -445,13 +453,15 @@ function splitEmailsForCorrectProviders(emailData, attachments) {
         client.get(redisKey, function(err, numberSent) {
             if (!numberSent) {
                 numberSent = 0;
+            } else {
+                numberSent = parseInt(numberSent);
             }
             splitEmailsUsingRedis(emailData, attachments, emailMethod, numberSent).then(function(status) {
                 deferred.resolve(status);
             }, function(err) {
                 deferred.reject(err);
             });
-        }
+        });
     }
 
     return deferred.promise;
