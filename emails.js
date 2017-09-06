@@ -357,6 +357,9 @@ function splitEmailsForCorrectProviders(emailData, attachments) {
     if (emailMethod === 'sendgrid') {
         var tempFunction = sendEmailsAndSendToUpdateService(emailData, attachments, emailMethod);
         allPromises.push(tempFunction);
+    } else {
+        var tempFunction = sendEmailsAndSendToUpdateService(emailData, attachments, emailMethod);
+        allPromises.push(tempFunction);
     }
 
     return Q.all(allPromises);
