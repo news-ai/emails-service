@@ -13,8 +13,9 @@ var datastore = require('@google-cloud/datastore')({
     projectId: 'newsai-1166'
 });
 
-// Instantiate a redis client
-var client = redis.createClient();
+// Initialize Sentry
+var sentryClient = new raven.Client('https://86fa2a75d816431a930f9403613bb8b0:20ffd70440344532ab20fd18c3b998eb@sentry.io/211180');
+sentryClient.patchGlobal();
 
 function getScheduledEmails() {
     var deferred = Q.defer();
@@ -34,7 +35,8 @@ function getScheduledEmails() {
         .filter('SendAt', '<=', timeNow)
         .filter('IsSent', '=', true)
         .filter('Delievered', '=', false)
-        .filter('Cancel', '=', false);
+        .filter('Cancel', '=', false)
+        .select('__key__');
 
     datastore.runQuery(query, (err, entities, nextQuery) => {
         if (err) {
@@ -59,8 +61,15 @@ function sendScheduledEmails(argument) {
 function filteredEmails(emails) {
     var returnEmails = [];
     for (var i = 0; i < emails.length; i++) {
-        var emailDate = new Date(emails[i].data.SendAt);
-        if (emailDate.getFullYear() > 2000) {
+        // Filter based on email
+        var toAdd = true;
+
+        // Then we check if it has any SendGrid/Gmail Ids
+        if (emails[i].data.SendGridId !== '' || emails[i].data.GmailId !== '') {
+            toAdd = false;
+        }
+
+        if (toAdd) {
             returnEmails.push(emails[i]);
         }
     }
@@ -70,8 +79,11 @@ function filteredEmails(emails) {
 
 function runScheduledEmails() {
     getScheduledEmails().then(function(emails) {
-        var scheduledEmails = filteredEmails(emails);
-        console.log(scheduledEmails.length);
+        console.log(emails);
+        // var scheduledEmails = filteredEmails(emails);
+        // for (var i = 0; i < scheduledEmails.length; i++) {
+        //     console.log(scheduledEmails[i]);
+        // }
     }, function(err) {
         console.error(err);
     });
