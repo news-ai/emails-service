@@ -13,6 +13,9 @@ var datastore = require('@google-cloud/datastore')({
     projectId: 'newsai-1166'
 });
 
+// Import application specific
+var common = require('./common');
+
 // Initialize Sentry
 var sentryClient = new raven.Client('https://86fa2a75d816431a930f9403613bb8b0:20ffd70440344532ab20fd18c3b998eb@sentry.io/211180');
 sentryClient.patchGlobal();
@@ -58,19 +61,19 @@ function sendScheduledEmails(argument) {
     // body...
 }
 
-function filteredEmails(emails) {
+function filteredEmails(emailData) {
     var returnEmails = [];
-    for (var i = 0; i < emails.length; i++) {
+    for (var i = 0; i < emailData.emails.length; i++) {
         // Filter based on email
         var toAdd = true;
 
         // Then we check if it has any SendGrid/Gmail Ids
-        if (emails[i].data.SendGridId !== '' || emails[i].data.GmailId !== '') {
+        if (emailData.emails[i].data.SendGridId !== '' || emailData.emails[i].data.GmailId !== '') {
             toAdd = false;
         }
 
         if (toAdd) {
-            returnEmails.push(emails[i]);
+            returnEmails.push(emailData.emails[i]);
         }
     }
 
@@ -78,15 +81,42 @@ function filteredEmails(emails) {
 }
 
 function runScheduledEmails() {
+    var deferred = Q.defer();
+
     getScheduledEmails().then(function(emails) {
-        console.log(emails);
-        // var scheduledEmails = filteredEmails(emails);
-        // for (var i = 0; i < scheduledEmails.length; i++) {
-        //     console.log(scheduledEmails[i]);
-        // }
+        var data = {
+            EmailIds: []
+        };
+        for (var i = 0; i < emails.length; i++) {
+            data.EmailIds.push(emails[i].key.id);
+        }
+
+        /// Get all emails that were in the email ids array
+        common.getEmails(data, 'Email').then(function(emailData) {
+            if (emailData.emails.length === 0) {
+                deferred.resolve({});
+            } else {
+                common.getAttachments(emailData.files).then(function(attachments) {
+                    var scheduledEmails = filteredEmails(emailData);
+                    for (var i = 0; i < scheduledEmails.length; i++) {
+                        console.log(scheduledEmails[i]);
+                    }
+                }, function(err) {
+                    console.error(err);
+                    sentryClient.captureMessage(err);
+                    deferred.reject(err);
+                });
+            }
+        }, function(err) {
+            console.error(err);
+            sentryClient.captureMessage(err);
+            deferred.reject(err);
+        });
     }, function(err) {
         console.error(err);
     });
+
+    return deferred.promise;
 }
 
 runScheduledEmails();
