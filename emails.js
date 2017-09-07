@@ -347,12 +347,13 @@ function sendEmailsAndSendToUpdateService(emailData, attachments, emailMethod) {
 
 function maximumSentForEmailMethod(emailMethod) {
     if (emailMethod === 'gmail') {
-        return 41;
+        return 500;
     } else if (emailMethod === 'outlook') {
         return 300;
     } else if (emailMethod === 'smtp') {
         return 300;
     }
+
     return 1000;
 }
 
@@ -394,9 +395,6 @@ function splitEmailsUsingRedis(emailData, attachments, emailMethod, numberSent) 
 
         emailProviderEmailData.emails = splitOne;
         sendgridEmailData.emails = splitTwo;
-
-        console.log(emailProviderEmailData.emails.length);
-        console.log(sendgridEmailData.emails.length);
 
         // Split into 2 arrays: one for email provider, one for sendgrid
         // 1. Send from email provider

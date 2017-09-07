@@ -69,7 +69,7 @@ function sendEmail(sentryClient, email, user, userBilling, attachments) {
         }
         deferred.resolve(emailIdObject);
     }).catch(function(err) {
-        deferred.reject(new Error(err));
+        deferred.reject(err);
     });
 
     return deferred.promise;
