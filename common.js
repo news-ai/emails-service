@@ -8,6 +8,11 @@ var gcloud = require('google-cloud')({
     projectId: 'newsai-1166'
 });
 
+// Instantiate a datastore client
+var datastore = require('@google-cloud/datastore')({
+    projectId: 'newsai-1166'
+});
+
 var common = exports;
 
 // Instantiate a redis client
