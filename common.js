@@ -229,7 +229,7 @@ function getEmails(data, resouceType) {
     return deferred.promise;
 }
 
-function sendEmail(email, user, emailMethod, userBilling, attachments) {
+function sendEmail(email, user, emailMethod, userBilling, attachments, emailDelay) {
     var deferred = Q.defer();
 
     // What we want to send back to the sendEmails function
@@ -297,6 +297,12 @@ function sendEmail(email, user, emailMethod, userBilling, attachments) {
     return deferred.promise;
 }
 
+function getDelayParameterForEmail(emailIndex) {
+    var betweenDelay = 60;
+    var delayAmount = Math.floor(emailIndex/200)
+    return delayAmount * betweenDelay;
+}
+
 function sendEmails(emailData, attachments, emailMethod) {
     var deferred = Q.defer();
     var allPromises = [];
@@ -306,7 +312,8 @@ function sendEmails(emailData, attachments, emailMethod) {
 
     // Setup promises for each of these emails
     for (var i = 0; i < emails.length; i++) {
-        var tempFunction = sendEmail(emails[i], emailData.user, emailMethod, emailData.billing, attachments);
+        var emailDelay = getDelayParameterForEmail(i);
+        var tempFunction = sendEmail(emails[i], emailData.user, emailMethod, emailData.billing, attachments, emailDelay);
         allPromises.push(tempFunction);
     }
 
