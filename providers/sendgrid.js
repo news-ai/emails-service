@@ -12,7 +12,7 @@ function getSendGridApiKey(userBilling) {
     return process.env.SENDGRID_PROD;
 }
 
-function sendEmail(sentryClient, email, user, userBilling, attachments) {
+function sendEmail(sentryClient, email, user, userBilling, attachments, emailDelay) {
     var deferred = Q.defer();
 
     var sendgridApiKey = getSendGridApiKey(userBilling);
@@ -61,7 +61,17 @@ function sendEmail(sentryClient, email, user, userBilling, attachments) {
         }
     }
 
-    // Add email delay portion here
+    // Add email delay. Based on how many emails are sent we delay the
+    // messages so it's not overwhelming for the email servers.
+    if (emailDelay > 0) {
+        var timeSend = new Date();
+        timeSend.setSeconds(timeSend.getSeconds() + emailDelay);
+        message.sendAt = Math.floor(timeSend / 1000);
+    }
+
+    message.unique_args = {
+        customerAccountNumber: user.key.id.toString()
+    };
 
     sgMail.send(message).then(function(response) {
         var emailIdObject = {

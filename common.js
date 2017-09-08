@@ -260,7 +260,7 @@ function sendEmail(email, user, emailMethod, userBilling, attachments, emailDela
             deferred.reject(err);
         });
     } else if (emailMethod === 'sendgrid') {
-        sendgrid.sendEmail(sentryClient, email, user, userBilling, attachments).then(function(response) {
+        sendgrid.sendEmail(sentryClient, email, user, userBilling, attachments, emailDelay).then(function(response) {
             returnEmailResponse.delivered = true;
             returnEmailResponse.sendid = response.emailId;
             deferred.resolve(returnEmailResponse);
@@ -299,7 +299,12 @@ function sendEmail(email, user, emailMethod, userBilling, attachments, emailDela
 
 function getDelayParameterForEmail(emailIndex) {
     var betweenDelay = 60;
-    var delayAmount = Math.floor(emailIndex/200)
+
+    // 150 is the number of emails which we want to introduce
+    // the delay after. The delay will come after the first
+    // 150 emails the user sends out. It'll be delayed every
+    // 60 seconds for a batch of 150 after that.
+    var delayAmount = Math.floor(emailIndex/150);
     return delayAmount * betweenDelay;
 }
 
