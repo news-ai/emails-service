@@ -99,7 +99,7 @@ function sendEmail(email, user, userBilling, attachments, emailDelay) {
 
 var app = Consumer.create({
     region: 'us-east-2',
-    queueUrl: 'https://sqs.us-east-2.amazonaws.com/859780131339/emails-outlook.fifo',
+    queueUrl: 'https://sqs.us-east-2.amazonaws.com/859780131339/emails-sendgrid.fifo',
     handleMessage: (message, done) => {
         var emailDetails = JSON.parse(message.Body);
         console.log(emailDetails.email.key.id);
