@@ -15,9 +15,7 @@ AWS.config.update({
 
 var common = require('./common');
 
-var gmail = exports;
-
-function refreshAccessToken(sentryClient, user) {
+function refreshAccessToken(user) {
     var deferred = Q.defer();
 
     // Setup options for GET call
@@ -68,7 +66,7 @@ function validateAccessToken(sentryClient, user) {
         })
         .catch(function(err) {
             // If not then we want to get a new access token
-            refreshAccessToken(sentryClient, user).then(function(newUser) {
+            refreshAccessToken(user).then(function(newUser) {
                 deferred.resolve(newUser);
             }, function(err) {
                 deferred.reject(err);
@@ -78,10 +76,10 @@ function validateAccessToken(sentryClient, user) {
     return deferred.promise;
 }
 
-function setupEmail(sentryClient, user) {
+function setupEmail(user) {
     var deferred = Q.defer();
 
-    validateAccessToken(sentryClient, user).then(function(newUser) {
+    validateAccessToken(user).then(function(newUser) {
         // Now we know that we have at least a single valid access token
         deferred.resolve(newUser);
     }, function(err) {
@@ -91,7 +89,7 @@ function setupEmail(sentryClient, user) {
     return deferred.promise;
 }
 
-function sendEmail(sentryClient, email, user, userBilling, attachments) {
+function sendEmail(email, user, userBilling, attachments) {
     var deferred = Q.defer();
 
     var postURL = 'https://www.googleapis.com/gmail/v1/users/me/messages/send';
@@ -130,10 +128,24 @@ var app = Consumer.create({
     region: 'us-east-2',
     queueUrl: 'https://sqs.us-east-2.amazonaws.com/859780131339/emails-gmail.fifo',
     handleMessage: (message, done) => {
-        var msgBody = JSON.parse(message.Body);
-        console.log(msgBody);
-        // do some work with `message`
-        done();
+        var emailDetails = JSON.parse(message.Body);
+        console.log(emailDetails.email.key.id);
+        setupEmail(emailDetails.user).then(function(newUser) {
+            console.log(newUser);
+            sendEmail(emailDetails.email, newUser, emailDetails.userBilling, emailDetails.attachments).then(function(response) {
+                console.log(response);
+                // returnEmailResponse.sendid = response.id;
+                // returnEmailResponse.threadid = response.threadId
+                // returnEmailResponse.delivered = true;
+                done();
+            }, function(err) {
+                console.log(err);
+                done();
+            });
+        }, function(err) {
+            console.log(err);
+            done();
+        });
     },
     sqs: new AWS.SQS({region: 'us-east-2'})
 });
