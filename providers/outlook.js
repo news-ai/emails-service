@@ -17,7 +17,7 @@ var sqs = new AWS.SQS({
     region: 'us-east-2'
 });
 
-function refreshAccessToken(sentryClient, user) {
+function refreshAccessToken(user) {
     var deferred = Q.defer();
 
     // Setup options for GET call
@@ -52,7 +52,7 @@ function refreshAccessToken(sentryClient, user) {
     return deferred.promise;
 }
 
-function validateAccessToken(sentryClient, user) {
+function validateAccessToken(user) {
     var deferred = Q.defer();
 
     // Setup options for GET call
@@ -72,7 +72,7 @@ function validateAccessToken(sentryClient, user) {
         })
         .catch(function(err) {
             // If not then we want to get a new access token
-            refreshAccessToken(sentryClient, user).then(function(newUser) {
+            refreshAccessToken(user).then(function(newUser) {
                 deferred.resolve(newUser);
             }, function(err) {
                 deferred.reject(err);
@@ -82,10 +82,10 @@ function validateAccessToken(sentryClient, user) {
     return deferred.promise;
 }
 
-function setupEmail(sentryClient, user) {
+function setupEmail(user) {
     var deferred = Q.defer();
 
-    validateAccessToken(sentryClient, user).then(function(newUser) {
+    validateAccessToken(user).then(function(newUser) {
         // Now we know that we have at least a single valid access token
         deferred.resolve(newUser);
     }, function(err) {
@@ -97,7 +97,7 @@ function setupEmail(sentryClient, user) {
 }
 
 
-function sendEmail(sentryClient, email, user, userBilling, attachments) {
+function sendEmail(email, user, userBilling, attachments) {
     var deferred = Q.defer();
 
     var toEmail = {
