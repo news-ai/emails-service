@@ -46,7 +46,7 @@ function sendToUpdateService(updates) {
     return deferred.promise;
 }
 
-var job = cron.job('*/20 * * * * *', function() {
+var job = cron.job('*/15 * * * * *', function() {
     if (updateServiceArray.length > 0) {
         sendToUpdateService();
     }
