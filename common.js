@@ -222,7 +222,7 @@ function sendEmail(email, user, emailMethod, userBilling, attachments, emailDela
         var attachmentIds = [];
         for (var i = 0; i < attachments.length; i++) {
             var attachmentKey = 'attachment_' + attachments[i]._id
-            client.set(attachmentKey, JSON.stringify(attachments[i]), 'EX', 60*60*24);
+            client.set(attachmentKey, JSON.stringify(attachments[i]), 'EX', 60 * 60 * 24);
             attachmentIds.push(attachments[i]._id);
         }
         msg.attachments = attachmentIds;

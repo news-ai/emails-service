@@ -110,7 +110,8 @@ var app = Consumer.create({
             var returnEmailResponse = {
                 method: emailDetails.emailMethod,
                 delivered: true,
-                sendid: response.emailId
+                sendid: response.emailId,
+                emailid: emailDetails.email.key.id
             };
 
             var sqsParams = {
