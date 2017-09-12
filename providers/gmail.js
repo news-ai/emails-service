@@ -13,6 +13,10 @@ AWS.config.update({
     secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY_GMAIL
 });
 
+var sqs = new AWS.SQS({
+    region: 'us-east-2'
+});
+
 var common = require('./common');
 
 function refreshAccessToken(user) {
@@ -135,25 +139,44 @@ var app = Consumer.create({
         setupEmail(emailDetails.user).then(function(newUser) {
             var attachments = emailDetails.attachments || [];
             sendEmail(emailDetails.email, newUser, emailDetails.userBilling, attachments).then(function(response) {
-                console.log(response);
-                // returnEmailResponse.sendid = response.id;
-                // returnEmailResponse.threadid = response.threadId
-                // returnEmailResponse.delivered = true;
-                done();
+                // What we want to send back to the sendEmails function
+                // so we can send that to updates-service
+                var returnEmailResponse = {
+                    method: emailDetails.emailMethod,
+                    delivered: true,
+
+                    emailid: emailDetails.email.key.id,
+                    threadid: response.threadId,
+                    sendid: response.id
+                };
+
+                var sqsParams = {
+                    MessageBody: JSON.stringify(returnEmailResponse),
+                    QueueUrl: 'https://sqs.us-east-2.amazonaws.com/859780131339/emails-updates.fifo',
+                    MessageGroupId: emailDetails.user.key.id.toString(),
+                    MessageDeduplicationId: emailDetails.email.key.id.toString()
+                };
+
+                sqs.sendMessage(sqsParams, function(err, data) {
+                    if (err) {
+                        console.error(err);
+                    }
+                    done();
+                });
             }, function(err) {
-                console.log(err);
+                console.error(err);
                 done();
             });
         }, function(err) {
-            console.log(err);
+            console.error(err);
             done();
         });
     },
-    sqs: new AWS.SQS({region: 'us-east-2'})
+    sqs: sqs
 });
 
 app.on('error', (err) => {
-    console.log(err.message);
+    console.error(err.message);
 });
 
 app.start();
