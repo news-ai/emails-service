@@ -118,8 +118,7 @@ var app = Consumer.create({
             // so we can send that to updates-service
             var returnEmailResponse = {
                 method: emailDetails.emailMethod,
-                delivered: true,
-                sendid: response.emailId
+                delivered: true
             };
 
             var sqsParams = {
