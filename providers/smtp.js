@@ -69,7 +69,7 @@ function getSMTPEmailSettings(user) {
     return deferred.promise;
 }
 
-function sendEmail(sentryClient, email, user, userBilling, attachments) {
+function sendEmail(email, user, userBilling, attachments) {
     var deferred = Q.defer();
 
     var emailFormat = common.generateEmail(email, user, attachments);
