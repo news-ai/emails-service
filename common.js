@@ -133,24 +133,6 @@ function getAttachments(attachments) {
     return Q.all(allPromises);
 }
 
-function getSMTPEmailSettings(user) {
-    var deferred = Q.defer();
-
-    var emailSettingId = datastore.key(['EmailSetting', user.data.EmailSetting]);
-    getDatastore([emailSettingId]).then(function(emailSettings) {
-        if (emailSettings.length === 0) {
-            var err = 'No email setting id present for the user: ' + user.key;
-            deferred.reject(new Error(err));
-        }
-
-        deferred.resolve(emailSettings[0]);
-    }, function(err) {
-        deferred.reject(err);
-    });
-
-    return deferred.promise;
-}
-
 function getEmails(data, resouceType) {
     var deferred = Q.defer();
     try {
