@@ -50,7 +50,7 @@ function refreshAccessToken(user) {
     return deferred.promise;
 }
 
-function validateAccessToken(sentryClient, user) {
+function validateAccessToken(user) {
     var deferred = Q.defer();
 
     // Setup options for GET call
@@ -92,6 +92,8 @@ function setupEmail(user) {
 function sendEmail(email, user, userBilling, attachments) {
     var deferred = Q.defer();
 
+    console.log(email);
+
     var postURL = 'https://www.googleapis.com/gmail/v1/users/me/messages/send';
     if (attachments.length > 0) {
         postURL += '?uploadType=multipart';
@@ -131,8 +133,8 @@ var app = Consumer.create({
         var emailDetails = JSON.parse(message.Body);
         console.log(emailDetails.email.key.id);
         setupEmail(emailDetails.user).then(function(newUser) {
-            console.log(newUser);
-            sendEmail(emailDetails.email, newUser, emailDetails.userBilling, emailDetails.attachments).then(function(response) {
+            var attachments = emailDetails.attachments || [];
+            sendEmail(emailDetails.email, newUser, emailDetails.userBilling, attachments).then(function(response) {
                 console.log(response);
                 // returnEmailResponse.sendid = response.id;
                 // returnEmailResponse.threadid = response.threadId
