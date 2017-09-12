@@ -295,7 +295,7 @@ function sendEmailsAndSendToUpdateService(emailData, attachments, emailMethod) {
 
 function maximumSentForEmailMethod(emailMethod) {
     if (emailMethod === 'gmail') {
-        return 500;
+        return 300;
     } else if (emailMethod === 'outlook') {
         return 300;
     } else if (emailMethod === 'smtp') {
