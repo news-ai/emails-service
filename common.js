@@ -24,8 +24,8 @@ var storageBucket = 'tabulae-email-attachment';
 
 // AWS setup
 AWS.config.update({
-    accessKeyId: process.env.AWSCONFIG,
-    secretAccessKey: process.env.AWSSECRET
+    accessKeyId: process.env.AWS_ACCESS_KEY_ID,
+    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY
 });
 var sqs = new AWS.SQS({
     region: 'us-east-2'

@@ -2,6 +2,17 @@
 
 var Q = require('q');
 var rp = require('request-promise');
+
+// SQS consumer
+var Consumer = require('sqs-consumer');
+var AWS = require('aws-sdk');
+
+AWS.config.update({
+    region: 'us-east-2',
+    accessKeyId: process.env.AWS_ACCESS_KEY_ID_GMAIL,
+    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY_GMAIL
+});
+
 var common = require('./common');
 
 var gmail = exports;
@@ -115,5 +126,20 @@ function sendEmail(sentryClient, email, user, userBilling, attachments) {
     return deferred.promise;
 }
 
-gmail.setupEmail = setupEmail;
-gmail.sendEmail = sendEmail;
+var app = Consumer.create({
+    region: 'us-east-2',
+    queueUrl: 'https://sqs.us-east-2.amazonaws.com/859780131339/emails-gmail.fifo',
+    handleMessage: (message, done) => {
+        var msgBody = JSON.parse(message.Body);
+        console.log(msgBody);
+        // do some work with `message`
+        done();
+    },
+    sqs: new AWS.SQS({region: 'us-east-2'})
+});
+
+app.on('error', (err) => {
+    console.log(err.message);
+});
+
+app.start();

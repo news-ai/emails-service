@@ -20,6 +20,7 @@
     "raven": "^0.12.1",
     "redis": "^2.8.0",
     "request": "^2.75.0",
-    "request-promise": "^4.1.1"
+    "request-promise": "^4.1.1",
+    "sqs-consumer": "^3.7.0"
   }
 }
