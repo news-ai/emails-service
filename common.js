@@ -1,6 +1,7 @@
 'use strict';
 
 var raven = require('raven');
+var AWS = require('aws-sdk');
 var Q = require('q');
 var rp = require('request-promise');
 var redis = require('redis');
@@ -12,20 +13,22 @@ var gcloud = require('google-cloud')({
 var datastore = require('@google-cloud/datastore')({
     projectId: 'newsai-1166'
 });
-
 var common = exports;
 
 // Instantiate a redis client
 var client = redis.createClient();
 
-// Import application specific
-var gmail = require('./providers/gmail');
-var sendgrid = require('./providers/sendgrid');
-var outlook = require('./providers/outlook');
-var smtp = require('./providers/smtp');
+// AWS setup
+AWS.config.update({
+    accessKeyId: process.env.AWSCONFIG,
+    secretAccessKey: process.env.AWSSECRET
+});
+var sqs = new AWS.SQS({
+    region: 'us-east-2'
+});
 
 // Initialize Sentry
-var sentryClient = new raven.Client('https://86fa2a75d816431a930f9403613bb8b0:20ffd70440344532ab20fd18c3b998eb@sentry.io/211180');
+var sentryClient = new raven.Client('https://bfbe974199d945aca34197c9963af19f:c36b74a9fe7840659d31d01f31a072d6@sentry.io/215725');
 sentryClient.patchGlobal();
 
 /**
@@ -229,74 +232,6 @@ function getEmails(data, resouceType) {
     return deferred.promise;
 }
 
-function sendEmail(email, user, emailMethod, userBilling, attachments, emailDelay) {
-    var deferred = Q.defer();
-
-    // What we want to send back to the sendEmails function
-    // so we can send that to updates-service
-    var returnEmailResponse = {
-        method: emailMethod,
-        delivered: false,
-
-        emailid: email.key.id,
-        threadid: '',
-        sendid: ''
-    };
-
-    if (emailMethod === 'gmail') {
-        // We already determined that the user has
-        // Gmail access through our platform
-        // when we set the 'method' of the email
-        gmail.setupEmail(sentryClient, user).then(function(newUser) {
-            gmail.sendEmail(sentryClient, email, newUser, userBilling, attachments).then(function(response) {
-                returnEmailResponse.sendid = response.id;
-                returnEmailResponse.threadid = response.threadId
-                returnEmailResponse.delivered = true;
-                deferred.resolve(returnEmailResponse);
-            }, function(err) {
-                deferred.reject(err);
-            });
-        }, function(err) {
-            deferred.reject(err);
-        });
-    } else if (emailMethod === 'sendgrid') {
-        sendgrid.sendEmail(sentryClient, email, user, userBilling, attachments, emailDelay).then(function(response) {
-            returnEmailResponse.delivered = true;
-            returnEmailResponse.sendid = response.emailId;
-            deferred.resolve(returnEmailResponse);
-        }, function(err) {
-            deferred.reject(err);
-        });
-    } else if (emailMethod === 'outlook') {
-        outlook.setupEmail(sentryClient, user).then(function(newUser) {
-            outlook.sendEmail(sentryClient, email, newUser, userBilling, attachments).then(function(response) {
-                returnEmailResponse.delivered = true;
-                deferred.resolve(returnEmailResponse);
-            }, function(err) {
-                deferred.reject(err);
-            });
-        }, function(err) {
-            deferred.reject(err);
-        });
-    } else if (emailMethod === 'smtp') {
-        getSMTPEmailSettings(user).then(function(emailSetting) {
-            smtp.sendEmail(sentryClient, email, user, userBilling, attachments, emailSetting).then(function(response) {
-                returnEmailResponse.delivered = response.status;
-                deferred.resolve(returnEmailResponse);
-            }, function(err) {
-                deferred.reject(err);
-            });
-        }, function(err) {
-            deferred.reject(err);
-        });
-    } else {
-        console.error('No email method present');
-        deferred.resolve({});
-    }
-
-    return deferred.promise;
-}
-
 function getDelayParameterForEmail(emailIndex) {
     var betweenDelay = 60;
 
@@ -304,8 +239,37 @@ function getDelayParameterForEmail(emailIndex) {
     // the delay after. The delay will come after the first
     // 150 emails the user sends out. It'll be delayed every
     // 60 seconds for a batch of 150 after that.
-    var delayAmount = Math.floor(emailIndex/150);
+    var delayAmount = Math.floor(emailIndex / 150);
     return delayAmount * betweenDelay;
+}
+
+function sendEmail(email, user, emailMethod, userBilling, attachments, emailDelay) {
+    var deferred = Q.defer();
+
+    var msg = {
+        email: email,
+        user: user,
+        emailMethod: emailMethod,
+        userBilling: userBilling,
+        attachments: attachments,
+        emailDelay: emailDelay
+    }
+
+    var sqsParams = {
+        MessageBody: JSON.stringify(msg),
+        QueueUrl: 'https://sqs.us-east-2.amazonaws.com/859780131339/emails-gmail.fifo',
+        MessageGroupId: user.key.id.toString()
+    };
+
+    sqs.sendMessage(sqsParams, function(err, data) {
+        if (err) {
+            deferred.resolve(status);
+        } else {
+            deferred.resolve(data);
+        }
+    });
+
+    return deferred.promise;
 }
 
 function sendEmails(emailData, attachments, emailMethod) {
@@ -420,8 +384,8 @@ function splitEmailsUsingRedis(emailData, attachments, emailMethod, numberSent) 
 
     // Update in redis how many emails were sent using that email provider
     var d = new Date();
-    var secondsLeft = (24*60*60) - (d.getHours()*60*60) - (d.getMinutes()*60) - d.getSeconds();
-    client.set(redisKey, numberSent+sentFromEmailProvider, 'EX', secondsLeft);
+    var secondsLeft = (24 * 60 * 60) - (d.getHours() * 60 * 60) - (d.getMinutes() * 60) - d.getSeconds();
+    client.set(redisKey, numberSent + sentFromEmailProvider, 'EX', secondsLeft);
 
     return Q.all(allPromises);
 }

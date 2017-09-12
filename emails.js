@@ -24,7 +24,7 @@ var topicName = 'tabulae-emails-service';
 var common = require('./common');
 
 // Initialize Sentry
-var sentryClient = new raven.Client('https://86fa2a75d816431a930f9403613bb8b0:20ffd70440344532ab20fd18c3b998eb@sentry.io/211180');
+var sentryClient = new raven.Client('https://bfbe974199d945aca34197c9963af19f:c36b74a9fe7840659d31d01f31a072d6@sentry.io/215725');
 sentryClient.patchGlobal();
 
 // Get a Google Cloud topic
