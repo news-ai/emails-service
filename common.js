@@ -246,21 +246,38 @@ function sendEmail(email, user, emailMethod, userBilling, attachments, emailDela
         msg.attachments = attachmentIds;
     }
 
-    var sqsParams = {
-        MessageBody: JSON.stringify(msg),
-        QueueUrl: 'https://sqs.us-east-2.amazonaws.com/859780131339/emails-gmail.fifo',
-        MessageGroupId: user.key.id.toString(),
-        MessageDeduplicationId: email.key.id.toString()
-    };
+    var queueURL = ''
+    if (emailMethod === 'gmail') {
+        queueURL = 'https://sqs.us-east-2.amazonaws.com/859780131339/emails-gmail.fifo';
+    } else if (emailMethod === 'outlook') {
+        queueURL = 'https://sqs.us-east-2.amazonaws.com/859780131339/emails-outlook.fifo';
+    } else if (emailMethod === 'sendgrid') {
+        queueURL = 'https://sqs.us-east-2.amazonaws.com/859780131339/emails-sendgrid.fifo';
+    } else if (emailMethod === 'smtp') {
+        queueURL = 'https://sqs.us-east-2.amazonaws.com/859780131339/emails-smtp.fifo';
+    }
 
-    sqs.sendMessage(sqsParams, function(err, data) {
-        if (err) {
-            console.error(err);
-            deferred.resolve(err);
-        } else {
-            deferred.resolve(data);
-        }
-    });
+    if (queueURL === '') {
+        var err = 'No queue selected'
+        console.error(err);
+        deferred.resolve(err);
+    } else {
+        var sqsParams = {
+            MessageBody: JSON.stringify(msg),
+            QueueUrl: queueURL,
+            MessageGroupId: user.key.id.toString(),
+            MessageDeduplicationId: email.key.id.toString()
+        };
+
+        sqs.sendMessage(sqsParams, function(err, data) {
+            if (err) {
+                console.error(err);
+                deferred.resolve(err);
+            } else {
+                deferred.resolve(data);
+            }
+        });
+    }
 
     return deferred.promise;
 }
