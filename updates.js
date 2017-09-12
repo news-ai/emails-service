@@ -31,7 +31,7 @@ function sendToUpdateService(updates) {
         json: updateServiceArray
     };
 
-    console.log(updateServiceArray);
+    console.log(updateServiceArray.length);
 
     updateServiceArray = [];
 
@@ -46,8 +46,10 @@ function sendToUpdateService(updates) {
     return deferred.promise;
 }
 
-var job = cron.job('*/30 * * * * *', function() {
-    sendToUpdateService();
+var job = cron.job('*/20 * * * * *', function() {
+    if (updateServiceArray.length > 0) {
+        sendToUpdateService();
+    }
 });
 
 var app = Consumer.create({
