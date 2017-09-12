@@ -3,7 +3,19 @@
 var Q = require('q');
 var rp = require('request-promise');
 
-var outlook = exports;
+// SQS consumer
+var Consumer = require('sqs-consumer');
+var AWS = require('aws-sdk');
+
+AWS.config.update({
+    region: 'us-east-2',
+    accessKeyId: process.env.AWS_ACCESS_KEY_ID_GMAIL,
+    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY_GMAIL
+});
+
+var sqs = new AWS.SQS({
+    region: 'us-east-2'
+});
 
 function refreshAccessToken(sentryClient, user) {
     var deferred = Q.defer();
@@ -139,5 +151,49 @@ function sendEmail(sentryClient, email, user, userBilling, attachments) {
     return deferred.promise;
 }
 
-outlook.setupEmail = setupEmail;
-outlook.sendEmail = sendEmail;
+var app = Consumer.create({
+    region: 'us-east-2',
+    queueUrl: 'https://sqs.us-east-2.amazonaws.com/859780131339/emails-outlook.fifo',
+    handleMessage: (message, done) => {
+        var emailDetails = JSON.parse(message.Body);
+        console.log(emailDetails.email.key.id);
+        setupEmail(emailDetails.user).then(function(newUser) {
+            var attachments = emailDetails.attachments || [];
+            sendEmail(emailDetails.email, newUser, emailDetails.userBilling, attachments).then(function(response) {
+                // What we want to send back to the sendEmails function
+                // so we can send that to updates-service
+                var returnEmailResponse = {
+                    method: emailDetails.emailMethod,
+                    delivered: true
+                };
+
+                var sqsParams = {
+                    MessageBody: JSON.stringify(returnEmailResponse),
+                    QueueUrl: 'https://sqs.us-east-2.amazonaws.com/859780131339/emails-updates.fifo',
+                    MessageGroupId: emailDetails.user.key.id.toString(),
+                    MessageDeduplicationId: emailDetails.email.key.id.toString()
+                };
+
+                sqs.sendMessage(sqsParams, function(err, data) {
+                    if (err) {
+                        console.error(err);
+                    }
+                    done();
+                });
+            }, function(err) {
+                console.error(err);
+                done();
+            });
+        }, function(err) {
+            console.error(err);
+            done();
+        });
+    },
+    sqs: sqs
+});
+
+app.on('error', (err) => {
+    console.error(err.message);
+});
+
+app.start();
