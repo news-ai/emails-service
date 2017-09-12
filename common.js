@@ -18,6 +18,10 @@ var common = exports;
 // Instantiate a redis client
 var client = redis.createClient();
 
+// Initialize Google Cloud
+var storage = gcloud.storage();
+var storageBucket = 'tabulae-email-attachment';
+
 // AWS setup
 AWS.config.update({
     accessKeyId: process.env.AWSCONFIG,
@@ -106,6 +110,7 @@ function getAttachment(attachment) {
         bucketFile.get(function(err, fileData, apiResponse) {
             // file.metadata has been populated.
             var file = {
+                _id: attachment.key.id,
                 name: attachment.data.OriginalName,
                 type: fileData.metadata.contentType,
                 data: fileContents
@@ -142,27 +147,6 @@ function getSMTPEmailSettings(user) {
     }, function(err) {
         deferred.reject(err);
     });
-
-    return deferred.promise;
-}
-
-function sendToUpdateService(updates) {
-    var deferred = Q.defer();
-
-    var options = {
-        method: 'POST',
-        uri: 'https://updates-dot-newsai-1166.appspot.com/updates',
-        json: updates
-    };
-
-    rp(options)
-        .then(function(jsonBody) {
-            deferred.resolve(jsonBody);
-        })
-        .catch(function(err) {
-            // If there's problems even getting a new access token
-            deferred.reject(new Error(err));
-        });
 
     return deferred.promise;
 }
@@ -204,11 +188,8 @@ function getEmails(data, resouceType) {
                     var err = 'User Billing Id is missing for user: ' + userId;
                     deferred.reject(new Error(err));
                 } else {
-                    var billingKeys = [];
                     var billingId = datastore.key(['Billing', user.data.BillingId]);
-                    billingKeys.push(billingId);
-
-                    getDatastore(billingKeys).then(function(billingEntities) {
+                    getDatastore([billingId]).then(function(billingEntities) {
                         deferred.resolve({
                             emails: emails,
                             user: user,
@@ -251,19 +232,31 @@ function sendEmail(email, user, emailMethod, userBilling, attachments, emailDela
         user: user,
         emailMethod: emailMethod,
         userBilling: userBilling,
-        attachments: attachments,
         emailDelay: emailDelay
+    };
+
+    var redisAttachments = [];
+    if (attachments.length > 0) {
+        var attachmentIds = [];
+        for (var i = 0; i < attachments.length; i++) {
+            var attachmentKey = 'attachment_' + attachments[i]._id
+            client.set(attachmentKey, JSON.stringify(attachments[i]), 'EX', 60*60*24);
+            attachmentIds.push(attachments[i]._id);
+        }
+        msg.attachments = attachmentIds;
     }
 
     var sqsParams = {
         MessageBody: JSON.stringify(msg),
         QueueUrl: 'https://sqs.us-east-2.amazonaws.com/859780131339/emails-gmail.fifo',
-        MessageGroupId: user.key.id.toString()
+        MessageGroupId: user.key.id.toString(),
+        MessageDeduplicationId: email.key.id.toString()
     };
 
     sqs.sendMessage(sqsParams, function(err, data) {
         if (err) {
-            deferred.resolve(status);
+            console.error(err);
+            deferred.resolve(err);
         } else {
             deferred.resolve(data);
         }
@@ -293,11 +286,7 @@ function sendEmailsAndSendToUpdateService(emailData, attachments, emailMethod) {
     var deferred = Q.defer();
 
     sendEmails(emailData, attachments, emailMethod).then(function(responses) {
-        sendToUpdateService(responses).then(function(status) {
-            deferred.resolve(status);
-        }, function(err) {
-            deferred.reject(err);
-        });
+        deferred.resolve(responses);
     }, function(err) {
         deferred.reject(err);
     });
