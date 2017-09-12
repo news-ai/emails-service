@@ -76,7 +76,8 @@ function sendEmail(email, user, userBilling, attachments) {
     var emailFormatString = emailFormat.join('');
 
     getSMTPEmailSettings(user).then(function(emailSetting) {
-        var SMTPPassword = user.data.SMTPPassword.toString('ascii');
+        var SMTPPasswordBuffer = Buffer(user.data.SMTPPassword.data);
+        var SMTPPassword = SMTPPasswordBuffer.toString('ascii');
         var emailRequest = {
             servername: emailSetting.data.SMTPServer + ':' + emailSetting.data.SMTPPortSSL,
             emailuser: user.data.SMTPUsername,

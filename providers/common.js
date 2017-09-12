@@ -36,7 +36,6 @@ function generateEmail(email, user, attachments) {
             nl, email.data.Body
         ];
     } else {
-
         emailFormat = ["MIME-Version: 1.0", nl,
             "To: ", email.data.To, nl,
             CC,
