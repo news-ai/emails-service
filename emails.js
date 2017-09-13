@@ -1,5 +1,6 @@
 'use strict';
 
+var Logger = require('le_node');
 var raven = require('raven');
 var Q = require('q');
 var rp = require('request-promise');
@@ -27,6 +28,11 @@ var common = require('./common');
 var sentryClient = new raven.Client('https://bfbe974199d945aca34197c9963af19f:c36b74a9fe7840659d31d01f31a072d6@sentry.io/215725');
 sentryClient.patchGlobal();
 
+// Initialize Logger
+var log = new Logger({
+  token:'18120ade-3fb8-434f-a0f5-370ce6e78166'
+});
+
 // Get a Google Cloud topic
 function getTopic(currentTopicName, cb) {
     pubsub.createTopic(currentTopicName, function(err, topic) {
@@ -52,17 +58,20 @@ function setupEmails(data) {
                     deferred.resolve(status);
                 }, function(err) {
                     console.error(err);
+                    log.err(err);
                     sentryClient.captureMessage(err);
                     deferred.reject(err);
                 });
             }, function(err) {
                 console.error(err);
+                log.err(err);
                 sentryClient.captureMessage(err);
                 deferred.reject(err);
             });
         }
     }, function(err) {
         console.error(err);
+        log.err(err);
         sentryClient.captureMessage(err);
         deferred.reject(err);
     });
@@ -121,13 +130,16 @@ function subscribe(cb) {
 
 // Begin subscription
 subscribe(function(err, message) {
+    log.info('Email sent for ' + message.data.EmailIds)
     setupEmails(message.data).then(function(status) {
         rp('https://hchk.io/ccb41d9b-287f-4a8c-af43-8113aa0ccc34').then(function(htmlString) {
             console.log('Email sent for ' + message.data.EmailIds);
         }).catch(function(err) {
+            log.err(err);
             console.error(err);
         });
     }, function(err) {
+        log.err(err);
         console.error(err);
     });
 });

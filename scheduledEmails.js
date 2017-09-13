@@ -52,11 +52,6 @@ function getScheduledEmails() {
     return deferred.promise;
 }
 
-function setupScheduledEmails() {
-    // Dumbest way: send each email individually
-    // Clever way: find the similarly scheduled emails and process them together
-}
-
 function sendScheduledEmails(argument) {
     // body...
 }

@@ -21,7 +21,6 @@ var sqs = new AWS.SQS({
 // Array for the messages we'll send to the update service
 var updateServiceArray = [];
 
-
 function sendToUpdateService(updates) {
     var deferred = Q.defer();
 
