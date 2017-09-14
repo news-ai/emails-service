@@ -2,6 +2,7 @@
 
 var Q = require('q');
 var rp = require('request-promise');
+var redis = require('redis');
 
 // SQS consumer
 var Consumer = require('sqs-consumer');
@@ -16,6 +17,9 @@ AWS.config.update({
 var sqs = new AWS.SQS({
     region: 'us-east-2'
 });
+
+// Instantiate a redis client
+var client = redis.createClient();
 
 var common = require('./common');
 
@@ -93,42 +97,53 @@ function setupEmail(user) {
     return deferred.promise;
 }
 
-function sendEmail(email, user, userBilling, attachments) {
+function sendEmail(email, user, userBilling, attachmentIds) {
     var deferred = Q.defer();
 
     var postURL = 'https://www.googleapis.com/gmail/v1/users/me/messages/send';
-    if (attachments.length > 0) {
+    if (attachmentIds.length > 0) {
         postURL += '?uploadType=multipart';
     }
 
-    var attachmentIds = []
-    for (var i = 0; i < emailDetails.attachments.length; i++) {
-        attachmentIds = attachmentIds.push('attachment_' + emailDetails.attachments[i]);
+    var redisAttachmentId = []
+    for (var i = 0; i < attachmentIds.length; i++) {
+        redisAttachmentId = redisAttachmentId.push('attachment_' + attachmentIds[i]);
     }
 
-    var emailFormat = common.generateEmail(email, user, attachments);
-    var emailFormatString = emailFormat.join('');
-    var emailToSend = new Buffer(emailFormatString).toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/\//g, '_');
-
-    var options = {
-        url: postURL,
-        method: 'POST',
-        json: {
-            raw: emailToSend
-        },
-        headers: {
-            'Authorization': 'Bearer ' + user.data.AccessToken,
-            'Content-Type': 'application/json'
+    client.mget(redisAttachmentId, function(err, redisAttachments) {
+        var attachments = [];
+        for (var i = 0; i < redisAttachments.length; i++) {
+            var attachment = JSON.parse(redisAttachments[i]);
+            attachments.push(attachment);
         }
-    };
 
-    rp(options)
-        .then(function(jsonBody) {
-            deferred.resolve(jsonBody);
-        })
-        .catch(function(err) {
-            deferred.reject(new Error(err));
-        });
+        console.log(attachments);
+
+        var emptyAttachments = [];
+        var emailFormat = common.generateEmail(email, user, emptyAttachments);
+        var emailFormatString = emailFormat.join('');
+        var emailToSend = new Buffer(emailFormatString).toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/\//g, '_');
+
+        var options = {
+            url: postURL,
+            method: 'POST',
+            json: {
+                raw: emailToSend
+            },
+            headers: {
+                'Authorization': 'Bearer ' + user.data.AccessToken,
+                'Content-Type': 'application/json'
+            }
+        };
+
+        rp(options)
+            .then(function(jsonBody) {
+                deferred.resolve(jsonBody);
+            })
+            .catch(function(err) {
+                deferred.reject(new Error(err));
+            });
+    })
 
     return deferred.promise;
 }
