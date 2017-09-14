@@ -214,19 +214,9 @@ function sendEmail(email, user, emailMethod, userBilling, attachments, emailDela
         user: user,
         emailMethod: emailMethod,
         userBilling: userBilling,
-        emailDelay: emailDelay
+        emailDelay: emailDelay,
+        attachments: attachments
     };
-
-    var redisAttachments = [];
-    if (attachments.length > 0) {
-        var attachmentIds = [];
-        for (var i = 0; i < attachments.length; i++) {
-            var attachmentKey = 'attachment_' + attachments[i]._id
-            client.set(attachmentKey, JSON.stringify(attachments[i]), 'EX', 60 * 60 * 24);
-            attachmentIds.push(attachments[i]._id);
-        }
-        msg.attachments = attachmentIds;
-    }
 
     var queueURL = ''
     if (emailMethod === 'gmail') {
@@ -386,9 +376,18 @@ function splitEmailsForCorrectProviders(emailData, attachments) {
     var firstEmail = emails[0];
     var emailMethod = firstEmail.data.Method;
 
+    var redisAttachments = [];
+    if (attachments.length > 0) {
+        for (var i = 0; i < attachments.length; i++) {
+            var attachmentKey = 'attachment_' + attachments[i]._id
+            client.set(attachmentKey, JSON.stringify(attachments[i]), 'EX', 60 * 60 * 24);
+            redisAttachments.push(attachments[i]._id);
+        }
+    }
+
     if (emailMethod === 'sendgrid') {
         // If sendgrid then send the emails directly
-        sendEmailsAndSendToUpdateService(emailData, attachments, emailMethod).then(function(status) {
+        sendEmailsAndSendToUpdateService(emailData, redisAttachments, emailMethod).then(function(status) {
             deferred.resolve(status);
         }, function(err) {
             deferred.reject(err);
@@ -402,7 +401,7 @@ function splitEmailsForCorrectProviders(emailData, attachments) {
             } else {
                 numberSent = parseInt(numberSent);
             }
-            splitEmailsUsingRedis(emailData, attachments, emailMethod, numberSent).then(function(status) {
+            splitEmailsUsingRedis(emailData, redisAttachments, emailMethod, numberSent).then(function(status) {
                 deferred.resolve(status);
             }, function(err) {
                 deferred.reject(err);

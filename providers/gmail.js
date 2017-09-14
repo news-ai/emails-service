@@ -96,11 +96,14 @@ function setupEmail(user) {
 function sendEmail(email, user, userBilling, attachments) {
     var deferred = Q.defer();
 
-    console.log(email);
-
     var postURL = 'https://www.googleapis.com/gmail/v1/users/me/messages/send';
     if (attachments.length > 0) {
         postURL += '?uploadType=multipart';
+    }
+
+    var attachmentIds = []
+    for (var i = 0; i < emailDetails.attachments.length; i++) {
+        attachmentIds = attachmentIds.push('attachment_' + emailDetails.attachments[i]);
     }
 
     var emailFormat = common.generateEmail(email, user, attachments);
