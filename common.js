@@ -379,7 +379,7 @@ function splitEmailsForCorrectProviders(emailData, attachments) {
     var redisAttachments = [];
     if (attachments.length > 0) {
         for (var i = 0; i < attachments.length; i++) {
-            var attachmentKey = 'attachment_' + attachments[i]._id
+            var attachmentKey = 'attachment_' + attachments[i]._id;
             client.set(attachmentKey, JSON.stringify(attachments[i]), 'EX', 60 * 60 * 24);
             redisAttachments.push(attachments[i]._id);
         }

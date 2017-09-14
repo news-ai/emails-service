@@ -107,7 +107,7 @@ function sendEmail(email, user, userBilling, attachmentIds) {
 
     var redisAttachmentId = []
     for (var i = 0; i < attachmentIds.length; i++) {
-        redisAttachmentId = redisAttachmentId.push('attachment_' + attachmentIds[i]);
+        redisAttachmentId.push('attachment_' + attachmentIds[i]);
     }
 
     client.mget(redisAttachmentId, function(err, redisAttachments) {
