@@ -140,7 +140,7 @@ function sendEmail(email, user, userBilling, attachmentIds) {
             .catch(function(err) {
                 deferred.reject(new Error(err));
             });
-    })
+    });
 
     return deferred.promise;
 }

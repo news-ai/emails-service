@@ -2,6 +2,7 @@
 
 var Q = require('q');
 var rp = require('request-promise');
+var redis = require('redis');
 
 // SQS consumer
 var Consumer = require('sqs-consumer');
@@ -16,6 +17,9 @@ AWS.config.update({
 var sqs = new AWS.SQS({
     region: 'us-east-2'
 });
+
+// Instantiate a redis client
+var client = redis.createClient();
 
 function refreshAccessToken(user) {
     var deferred = Q.defer();
@@ -97,7 +101,7 @@ function setupEmail(user) {
 }
 
 
-function sendEmail(email, user, userBilling, attachments) {
+function sendEmail(email, user, userBilling, attachmentIds) {
     var deferred = Q.defer();
 
     var toEmail = {
@@ -117,36 +121,44 @@ function sendEmail(email, user, userBilling, attachments) {
         }
     }
 
-    if (attachments.length > 0) {
-        message.Attachment = [];
-        for (var i = 0; i < attachments.length; i++) {
-            var formattedContentBytes = attachments[i].data.toString('base64');
-            var attachment = {
-                'Name': attachments[i].name,
-                'OdataType': '#Microsoft.OutlookServices.FileAttachment',
-                'ContentBytes': formattedContentBytes
-            };
-            message.Message.Attachments.push(attachment);
-        }
+    var redisAttachmentId = []
+    for (var i = 0; i < attachmentIds.length; i++) {
+        redisAttachmentId.push('attachment_' + attachmentIds[i]);
     }
 
-    var options = {
-        uri: 'https://outlook.office.com/api/v2.0/me/sendmail',
-        method: 'POST',
-        json: message,
-        headers: {
-            'Authorization': 'Bearer ' + user.data.OutlookAccessToken,
-            'Content-Type': 'application/json'
-        },
-    };
+    client.mget(redisAttachmentId, function(err, redisAttachments) {
+        if (redisAttachments.length > 0) {
+            message.Message.Attachments = [];
+            for (var i = 0; i < redisAttachments.length; i++) {
+                var parsedAttachment = JSON.parse(redisAttachments[i]);
+                var formattedContentBytes = Buffer(parsedAttachment.data.data).toString('base64');
+                var attachment = {
+                    'Name': parsedAttachment.name,
+                    'OdataType': '#Microsoft.OutlookServices.FileAttachment',
+                    'ContentBytes': formattedContentBytes
+                };
+                message.Message.Attachments.push(attachment);
+            }
+        }
 
-    rp(options)
-        .then(function(jsonBody) {
-            deferred.resolve(jsonBody);
-        })
-        .catch(function(err) {
-            deferred.reject(new Error(err));
-        });
+        var options = {
+            uri: 'https://outlook.office.com/api/v2.0/me/sendmail',
+            method: 'POST',
+            json: message,
+            headers: {
+                'Authorization': 'Bearer ' + user.data.OutlookAccessToken,
+                'Content-Type': 'application/json'
+            },
+        };
+
+        rp(options)
+            .then(function(jsonBody) {
+                deferred.resolve(jsonBody);
+            })
+            .catch(function(err) {
+                deferred.reject(new Error(err));
+            });
+    });
 
     return deferred.promise;
 }
