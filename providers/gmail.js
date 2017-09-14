@@ -117,10 +117,7 @@ function sendEmail(email, user, userBilling, attachmentIds) {
             attachments.push(attachment);
         }
 
-        console.log(attachments);
-
-        var emptyAttachments = [];
-        var emailFormat = common.generateEmail(email, user, emptyAttachments);
+        var emailFormat = common.generateEmail(email, user, attachments);
         var emailFormatString = emailFormat.join('');
         var emailToSend = new Buffer(emailFormatString).toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/\//g, '_');
 
