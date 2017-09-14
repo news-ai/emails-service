@@ -2,6 +2,7 @@
 
 const sgMail = require('@sendgrid/mail');
 var Q = require('q');
+var redis = require('redis');
 
 // SQS consumer
 var Consumer = require('sqs-consumer');
@@ -17,6 +18,9 @@ var sqs = new AWS.SQS({
     region: 'us-east-2'
 });
 
+// Instantiate a redis client
+var client = redis.createClient();
+
 function getSendGridApiKey(userBilling) {
     if (userBilling && userBilling.length > 0 && userBilling[0].data && userBilling[0].data.IsOnTrial) {
         return process.env.SENDGRID_TRAIL;
@@ -24,7 +28,7 @@ function getSendGridApiKey(userBilling) {
     return process.env.SENDGRID_PROD;
 }
 
-function sendEmail(email, user, userBilling, attachments, emailDelay) {
+function sendEmail(email, user, userBilling, attachmentIds, emailDelay) {
     var deferred = Q.defer();
 
     var sendgridApiKey = getSendGridApiKey(userBilling);
@@ -59,39 +63,52 @@ function sendEmail(email, user, userBilling, attachments, emailDelay) {
         message.bcc = email.data.BCC;
     }
 
-    if (attachments.length > 0) {
-        message.attachments = [];
-        for (var i = 0; i < attachments.length; i++) {
-            var formattedContent = attachments[i].data.toString('base64');
-            var attachment = {
-                content: formattedContent,
-                filename: attachments[i].name,
-                type: attachments[i].type,
-                disposition: 'attachment'
-            };
-            message.attachments.push(attachment);
-        }
+    var redisAttachmentId = []
+    for (var i = 0; i < attachmentIds.length; i++) {
+        redisAttachmentId.push('attachment_' + attachmentIds[i]);
     }
 
-    // Add email delay. Based on how many emails are sent we delay the
-    // messages so it's not overwhelming for the email servers.
-    if (emailDelay > 0) {
-        var timeSend = new Date();
-        timeSend.setSeconds(timeSend.getSeconds() + emailDelay);
-        message.sendAt = Math.floor(timeSend / 1000);
-    }
-
-    message.unique_args = {
-        customerAccountNumber: user.key.id.toString()
-    };
-
-    sgMail.send(message).then(function(response) {
-        var emailIdObject = {
-            emailId: response[0].headers['x-message-id']
+    client.mget(redisAttachmentId, function(err, redisAttachments) {
+        var attachments = [];
+        for (var i = 0; i < redisAttachments.length; i++) {
+            var attachment = JSON.parse(redisAttachments[i]);
+            attachments.push(attachment);
         }
-        deferred.resolve(emailIdObject);
-    }).catch(function(err) {
-        deferred.reject(err);
+
+        if (attachments.length > 0) {
+            message.attachments = [];
+            for (var i = 0; i < attachments.length; i++) {
+                var formattedContent = Buffer(attachments[i].data.data).toString('base64');
+                var attachment = {
+                    content: formattedContent,
+                    filename: attachments[i].name,
+                    type: attachments[i].type,
+                    disposition: 'attachment'
+                };
+                message.attachments.push(attachment);
+            }
+        }
+
+        // Add email delay. Based on how many emails are sent we delay the
+        // messages so it's not overwhelming for the email servers.
+        if (emailDelay > 0) {
+            var timeSend = new Date();
+            timeSend.setSeconds(timeSend.getSeconds() + emailDelay);
+            message.sendAt = Math.floor(timeSend / 1000);
+        }
+
+        message.unique_args = {
+            customerAccountNumber: user.key.id.toString()
+        };
+
+        sgMail.send(message).then(function(response) {
+            var emailIdObject = {
+                emailId: response[0].headers['x-message-id']
+            }
+            deferred.resolve(emailIdObject);
+        }).catch(function(err) {
+            deferred.reject(err);
+        });
     });
 
     return deferred.promise;
