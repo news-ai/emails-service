@@ -58,7 +58,7 @@ function generateEmail(email, user, attachments) {
         ];
 
         for (var i = 0; i < attachments.length; i++) {
-            var formattedData = attachments[i].data.toString('base64');
+            var formattedData = Buffer(attachments[i].data.data).toString('base64');
             var attachment = [
                 "--", boundary, nl,
                 "Content-Type: ", attachments[i].type, nl,
