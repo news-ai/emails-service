@@ -385,29 +385,47 @@ function splitEmailsForCorrectProviders(emailData, attachments) {
         }
     }
 
-    if (emailMethod === 'sendgrid') {
-        // If sendgrid then send the emails directly
-        sendEmailsAndSendToUpdateService(emailData, redisAttachments, emailMethod).then(function(status) {
-            deferred.resolve(status);
-        }, function(err) {
-            deferred.reject(err);
-        });
-    } else {
-        // Check redis for how many emails have been sent for that particular emailMethod today
-        var redisKey = emailData.user.key.id.toString() + '_' + emailMethod;
-        client.get(redisKey, function(err, numberSent) {
-            if (!numberSent) {
-                numberSent = 0;
-            } else {
-                numberSent = parseInt(numberSent);
-            }
-            splitEmailsUsingRedis(emailData, redisAttachments, emailMethod, numberSent).then(function(status) {
+    var redisEmailKeys = [];
+    for (var i = 0; i < emails.length; i++) {
+        redisEmailKeys.push('email_' + emails[i].key.id);
+    }
+
+    // // Record the emails in redis
+    // for (var i = 0; i < emails.length; i++) {
+    //     var redisKey = 'email_' + emails[i].key.id;
+    //     var redisValue = {
+    //         'status': 'processing',
+    //         'message': ''
+    //     };
+    //     client.set(redisKey, JSON.stringify(redisValue), 'EX', 60 * 60 * 24)
+    // }
+
+    client.mget(redisEmailKeys, function(err, redisEmails) {
+        console.log(redisEmails);
+        if (emailMethod === 'sendgrid') {
+            // If sendgrid then send the emails directly
+            sendEmailsAndSendToUpdateService(emailData, redisAttachments, emailMethod).then(function(status) {
                 deferred.resolve(status);
             }, function(err) {
                 deferred.reject(err);
             });
-        });
-    }
+        } else {
+            // Check redis for how many emails have been sent for that particular emailMethod today
+            var redisKey = emailData.user.key.id.toString() + '_' + emailMethod;
+            client.get(redisKey, function(err, numberSent) {
+                if (!numberSent) {
+                    numberSent = 0;
+                } else {
+                    numberSent = parseInt(numberSent);
+                }
+                splitEmailsUsingRedis(emailData, redisAttachments, emailMethod, numberSent).then(function(status) {
+                    deferred.resolve(status);
+                }, function(err) {
+                    deferred.reject(err);
+                });
+            });
+        }
+    });
 
     return deferred.promise;
 }
