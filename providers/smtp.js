@@ -3,6 +3,7 @@
 var Q = require('q');
 var rp = require('request-promise');
 var common = require('./common');
+var redis = require('redis');
 var gcloud = require('google-cloud')({
     projectId: 'newsai-1166'
 });
@@ -25,6 +26,9 @@ AWS.config.update({
 var sqs = new AWS.SQS({
     region: 'us-east-2'
 });
+
+// Instantiate a redis client
+var client = redis.createClient();
 
 function getDatastore(keys) {
     var deferred = Q.defer();
@@ -69,37 +73,50 @@ function getSMTPEmailSettings(user) {
     return deferred.promise;
 }
 
-function sendEmail(email, user, userBilling, attachments) {
+function sendEmail(email, user, userBilling, attachmentIds) {
     var deferred = Q.defer();
 
-    var emailFormat = common.generateEmail(email, user, attachments);
-    var emailFormatString = emailFormat.join('');
-
     getSMTPEmailSettings(user).then(function(emailSetting) {
-        var SMTPPasswordBuffer = Buffer(user.data.SMTPPassword.data);
-        var SMTPPassword = SMTPPasswordBuffer.toString('ascii');
-        var emailRequest = {
-            servername: emailSetting.data.SMTPServer + ':' + emailSetting.data.SMTPPortSSL,
-            emailuser: user.data.SMTPUsername,
-            emailpassword: SMTPPassword,
-            to: email.data.To,
-            subject: email.data.Subject,
-            body: emailFormatString
-        };
+        var redisAttachmentId = []
+        for (var i = 0; i < attachmentIds.length; i++) {
+            redisAttachmentId.push('attachment_' + attachmentIds[i]);
+        }
 
-        var options = {
-            method: 'POST',
-            uri: 'https://tabulae-smtp.newsai.org/send',
-            json: emailRequest
-        };
+        client.mget(redisAttachmentId, function(err, redisAttachments) {
+            var attachments = [];
+            for (var i = 0; i < redisAttachments.length; i++) {
+                var attachment = JSON.parse(redisAttachments[i]);
+                attachments.push(attachment);
+            }
 
-        rp(options)
-            .then(function(jsonBody) {
-                deferred.resolve(jsonBody);
-            })
-            .catch(function(err) {
-                deferred.reject(new Error(err));
-            });
+            var emailFormat = common.generateEmail(email, user, attachments);
+            var emailFormatString = emailFormat.join('');
+
+            var SMTPPasswordBuffer = Buffer(user.data.SMTPPassword.data);
+            var SMTPPassword = SMTPPasswordBuffer.toString('ascii');
+            var emailRequest = {
+                servername: emailSetting.data.SMTPServer + ':' + emailSetting.data.SMTPPortSSL,
+                emailuser: user.data.SMTPUsername,
+                emailpassword: SMTPPassword,
+                to: email.data.To,
+                subject: email.data.Subject,
+                body: emailFormatString
+            };
+
+            var options = {
+                method: 'POST',
+                uri: 'https://tabulae-smtp.newsai.org/send',
+                json: emailRequest
+            };
+
+            rp(options)
+                .then(function(jsonBody) {
+                    deferred.resolve(jsonBody);
+                })
+                .catch(function(err) {
+                    deferred.reject(new Error(err));
+                });
+        });
     }, function(err) {
         deferred.reject(err);
     });
