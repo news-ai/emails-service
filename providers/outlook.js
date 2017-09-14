@@ -121,7 +121,7 @@ function sendEmail(email, user, userBilling, attachmentIds) {
         }
     }
 
-    var redisAttachmentId = []
+    var redisAttachmentId = [];
     for (var i = 0; i < attachmentIds.length; i++) {
         redisAttachmentId.push('attachment_' + attachmentIds[i]);
     }
@@ -134,7 +134,7 @@ function sendEmail(email, user, userBilling, attachmentIds) {
                 var formattedContentBytes = Buffer(parsedAttachment.data.data).toString('base64');
                 var attachment = {
                     'Name': parsedAttachment.name,
-                    'OdataType': '#Microsoft.OutlookServices.FileAttachment',
+                    '@odata.type': '#Microsoft.OutlookServices.FileAttachment',
                     'ContentBytes': formattedContentBytes
                 };
                 message.Message.Attachments.push(attachment);
