@@ -263,6 +263,15 @@ function sendEmails(emailData, attachments, emailMethod) {
 
     // Setup promises for each of these emails
     for (var i = 0; i < emails.length; i++) {
+        var emailId = emails[i].key.id.toString();
+        var redisKey = 'email_' + emailId;
+        var redisValue = {
+            'id': emailId,
+            'status': 'sending',
+            'message': ''
+        };
+        client.set(redisKey, JSON.stringify(redisValue), 'EX', 60 * 60 * 24);
+
         var emailDelay = getDelayParameterForEmail(i);
         var tempFunction = sendEmail(emails[i], emailData.user, emailMethod, emailData.billing, attachments, emailDelay);
         allPromises.push(tempFunction);
