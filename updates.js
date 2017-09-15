@@ -56,7 +56,20 @@ var app = Consumer.create({
     queueUrl: 'https://sqs.us-east-2.amazonaws.com/859780131339/emails-updates.fifo',
     handleMessage: (message, done) => {
         var updateDetails = JSON.parse(message.Body);
-        updateServiceArray.push(updateDetails);
+
+        // Check if email has en error before sending it back to the API
+        var validEmail = updateDetails.delivered;
+
+        // Check if gmail email has been sent by checking sendid
+        if (updateDetails.method === 'gmail' && updateDetails.sendid === '') {
+            validEmail = false;
+        }
+
+        if (validEmail) {
+            updateServiceArray.push(updateDetails);
+        } else {
+            console.error(updateDetails);
+        }
         done();
     },
     sqs: sqs

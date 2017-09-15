@@ -80,17 +80,19 @@ function generateEmail(email, user, attachments) {
         ];
 
         for (var i = 0; i < attachments.length; i++) {
-            var formattedData = Buffer(attachments[i].data.data).toString('base64');
-            var attachment = [
-                "--", boundary, nl,
-                "Content-Type: ", attachments[i].type, nl,
-                "MIME-Version: 1.0", nl,
-                "Content-Disposition: attachment; filename=\"", attachments[i].name, "\"", nl,
-                "Content-Transfer-Encoding: base64" + nl, nl,
-                formattedData, nl, nl
-            ];
+            if (attachments[i] !== null) {
+                var formattedData = Buffer(attachments[i].data.data).toString('base64');
+                var attachment = [
+                    "--", boundary, nl,
+                    "Content-Type: ", attachments[i].type, nl,
+                    "MIME-Version: 1.0", nl,
+                    "Content-Disposition: attachment; filename=\"", attachments[i].name, "\"", nl,
+                    "Content-Transfer-Encoding: base64" + nl, nl,
+                    formattedData, nl, nl
+                ];
 
-            emailFormat = emailFormat.concat(attachment);
+                emailFormat = emailFormat.concat(attachment);
+            }
         }
 
         var finalBoundary = '--' + boundary + '--'
