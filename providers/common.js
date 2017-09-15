@@ -1,5 +1,27 @@
 var common = exports;
 
+function recordRedisError(client, emailDetails, err) {
+    var emailId = emailDetails.email.key.id.toString();
+    var redisKey = 'email_' + emailId;
+    var redisValue = {
+        'id': emailId,
+        'status': 'error',
+        'message': err
+    };
+    client.set(redisKey, JSON.stringify(redisValue), 'EX', 60 * 60 * 24);
+}
+
+function recordRedisSend(client, emailDetails) {
+    var emailId = emailDetails.email.key.id.toString();
+    var redisKey = 'email_' + emailId;
+    var redisValue = {
+        'id': emailId,
+        'status': 'delivered',
+        'message': ''
+    };
+    client.set(redisKey, JSON.stringify(redisValue), 'EX', 60 * 60 * 24);
+}
+
 function generateEmail(email, user, attachments) {
     var nl = "\r\n";
     var boundary = '__newsai_tabulae__';
@@ -79,3 +101,5 @@ function generateEmail(email, user, attachments) {
 }
 
 common.generateEmail = generateEmail;
+common.recordRedisError = recordRedisError;
+common.recordRedisSend = recordRedisSend;
