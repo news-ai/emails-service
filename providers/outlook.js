@@ -21,6 +21,8 @@ var sqs = new AWS.SQS({
 // Instantiate a redis client
 var client = redis.createClient();
 
+var common = require('./common');
+
 function refreshAccessToken(user) {
     var deferred = Q.defer();
 
@@ -189,15 +191,20 @@ var app = Consumer.create({
 
                 sqs.sendMessage(sqsParams, function(err, data) {
                     if (err) {
+                        common.recordRedisError(client, emailDetails, err);
                         console.error(err);
+                    } else {
+                        common.recordRedisSend(client, emailDetails);
                     }
                     done();
                 });
             }, function(err) {
+                common.recordRedisError(client, emailDetails, err);
                 console.error(err);
                 done();
             });
         }, function(err) {
+            common.recordRedisError(client, emailDetails, err);
             console.error(err);
             done();
         });

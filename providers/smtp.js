@@ -151,11 +151,15 @@ var app = Consumer.create({
 
             sqs.sendMessage(sqsParams, function(err, data) {
                 if (err) {
+                    common.recordRedisError(client, emailDetails, err);
                     console.error(err);
+                } else {
+                    common.recordRedisSend(client, emailDetails);
                 }
                 done();
             });
         }, function(err) {
+            common.recordRedisError(client, emailDetails, err);
             console.error(err);
             done();
         });
