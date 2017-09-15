@@ -179,10 +179,26 @@ var app = Consumer.create({
                     done();
                 });
             }, function(err) {
+                var emailId = emailDetails.email.key.id.toString();
+                var redisKey = 'email_' + emailId;
+                var redisValue = {
+                    'id': emailId,
+                    'status': 'error',
+                    'message': err
+                };
+                client.set(redisKey, JSON.stringify(redisValue), 'EX', 60 * 60 * 24);
                 console.error(err);
                 done();
             });
         }, function(err) {
+            var emailId = emailDetails.email.key.id.toString();
+            var redisKey = 'email_' + emailId;
+            var redisValue = {
+                'id': emailId,
+                'status': 'error',
+                'message': err
+            };
+            client.set(redisKey, JSON.stringify(redisValue), 'EX', 60 * 60 * 24);
             console.error(err);
             done();
         });
