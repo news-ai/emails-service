@@ -390,18 +390,38 @@ function splitEmailsForCorrectProviders(emailData, attachments) {
         redisEmailKeys.push('email_' + emails[i].key.id);
     }
 
-    // // Record the emails in redis
-    // for (var i = 0; i < emails.length; i++) {
-    //     var redisKey = 'email_' + emails[i].key.id;
-    //     var redisValue = {
-    //         'status': 'processing',
-    //         'message': ''
-    //     };
-    //     client.set(redisKey, JSON.stringify(redisValue), 'EX', 60 * 60 * 24)
-    // }
-
     client.mget(redisEmailKeys, function(err, redisEmails) {
-        console.log(redisEmails);
+        // Check if emails have already been processed
+        // if they have then remove them from emailData.emails
+        var sentEmails = {};
+        if (redisEmails.length > 0) {
+            for (var i = 0; i < redisEmails.length; i++) {
+                if (redisEmails[i] !== null) {
+                    var redisEmailData = JSON.parse(redisEmails[i]);
+                    sentEmails[redisEmailData.id] = true;
+                }
+            }
+        }
+
+        // Record the emails in redis
+        var tempEmails = emailData.emails.slice();;
+        emailData.emails = [];
+        for (var i = 0; i < tempEmails.length; i++) {
+            var emailId = tempEmails[i].key.id.toString();
+            var redisKey = 'email_' + emailId;
+            var redisValue = {
+                'id': emailId,
+                'status': 'processing',
+                'message': ''
+            };
+            client.set(redisKey, JSON.stringify(redisValue), 'EX', 60 * 60 * 24);
+
+            if (!(emailId in sentEmails)) {
+                emailData.emails.push(tempEmails[i]);
+            }
+        }
+
+        // Send emails
         if (emailMethod === 'sendgrid') {
             // If sendgrid then send the emails directly
             sendEmailsAndSendToUpdateService(emailData, redisAttachments, emailMethod).then(function(status) {
