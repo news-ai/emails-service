@@ -112,9 +112,11 @@ function sendEmail(email, user, userBilling, attachmentIds) {
 
     client.mget(redisAttachmentId, function(err, redisAttachments) {
         var attachments = [];
-        for (var i = 0; i < redisAttachments.length; i++) {
-            var attachment = JSON.parse(redisAttachments[i]);
-            attachments.push(attachment);
+        if (redisAttachments && redisAttachments.length > 0) {
+            for (var i = 0; i < redisAttachments.length; i++) {
+                var attachment = JSON.parse(redisAttachments[i]);
+                attachments.push(attachment);
+            }
         }
 
         var emailFormat = common.generateEmail(email, user, attachments);
