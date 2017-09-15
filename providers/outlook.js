@@ -127,7 +127,7 @@ function sendEmail(email, user, userBilling, attachmentIds) {
     }
 
     client.mget(redisAttachmentId, function(err, redisAttachments) {
-        if (redisAttachments.length > 0) {
+        if (redisAttachments && redisAttachments.length > 0) {
             message.Message.Attachments = [];
             for (var i = 0; i < redisAttachments.length; i++) {
                 var parsedAttachment = JSON.parse(redisAttachments[i]);

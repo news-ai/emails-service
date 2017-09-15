@@ -69,7 +69,7 @@ function sendEmail(email, user, userBilling, attachmentIds, emailDelay) {
     }
 
     client.mget(redisAttachmentId, function(err, redisAttachments) {
-        if (redisAttachments.length > 0) {
+        if (redisAttachments && redisAttachments.length > 0) {
             message.attachments = [];
             for (var i = 0; i < redisAttachments.length; i++) {
                 var parsedAttachment = JSON.parse(redisAttachments[i]);
