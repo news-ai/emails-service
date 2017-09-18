@@ -360,6 +360,10 @@ function splitEmailsUsingRedis(emailData, attachments, emailMethod, numberSent) 
             var tempFunctionSendgrid = sendEmailsAndSendToUpdateService(sendgridEmailData, attachments, 'sendgrid');
             allPromises.push(tempFunctionSendgrid);
         }
+
+        if ((sendgridEmailData.emails.length + emailProviderEmailData.emails.length) !== emailData.emails.length) {
+            console.error('Something is wrong with the email slicing math');
+        }
     } else {
         // Send purely using email provider
         sentFromEmailProvider = emailData.emails.length;
