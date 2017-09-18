@@ -77,20 +77,7 @@ function sendEmail(email, user, userBilling, attachmentIds) {
     var deferred = Q.defer();
 
     getSMTPEmailSettings(user).then(function(emailSetting) {
-        var redisAttachmentId = []
-        for (var i = 0; i < attachmentIds.length; i++) {
-            redisAttachmentId.push('attachment_' + attachmentIds[i]);
-        }
-
-        client.mget(redisAttachmentId, function(err, redisAttachments) {
-            var attachments = [];
-            if (redisAttachments && redisAttachments.length > 0) {
-                for (var i = 0; i < redisAttachments.length; i++) {
-                    var attachment = JSON.parse(redisAttachments[i]);
-                    attachments.push(attachment);
-                }
-            }
-
+        common.getRedisAttachment(client, attachmentIds).then(function(attachments) {
             var emailFormat = common.generateEmail(email, user, attachments);
             var emailFormatString = emailFormat.join('');
 

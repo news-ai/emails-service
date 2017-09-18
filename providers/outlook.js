@@ -123,19 +123,13 @@ function sendEmail(email, user, userBilling, attachmentIds) {
         }
     }
 
-    var redisAttachmentId = [];
-    for (var i = 0; i < attachmentIds.length; i++) {
-        redisAttachmentId.push('attachment_' + attachmentIds[i]);
-    }
-
-    client.mget(redisAttachmentId, function(err, redisAttachments) {
-        if (redisAttachments && redisAttachments.length > 0) {
+    common.getRedisAttachment(client, attachmentIds).then(function(attachments) {
+        if (attachments && attachments.length > 0) {
             message.Message.Attachments = [];
-            for (var i = 0; i < redisAttachments.length; i++) {
-                var parsedAttachment = JSON.parse(redisAttachments[i]);
-                var formattedContentBytes = Buffer(parsedAttachment.data.data).toString('base64');
+            for (var i = 0; i < attachments.length; i++) {
+                var formattedContentBytes = Buffer(attachments[i].data.data).toString('base64');
                 var attachment = {
-                    'Name': parsedAttachment.name,
+                    'Name': attachments[i].name,
                     '@odata.type': '#Microsoft.OutlookServices.FileAttachment',
                     'ContentBytes': formattedContentBytes
                 };

@@ -105,20 +105,7 @@ function sendEmail(email, user, userBilling, attachmentIds) {
         postURL += '?uploadType=multipart';
     }
 
-    var redisAttachmentId = []
-    for (var i = 0; i < attachmentIds.length; i++) {
-        redisAttachmentId.push('attachment_' + attachmentIds[i]);
-    }
-
-    client.mget(redisAttachmentId, function(err, redisAttachments) {
-        var attachments = [];
-        if (redisAttachments && redisAttachments.length > 0) {
-            for (var i = 0; i < redisAttachments.length; i++) {
-                var attachment = JSON.parse(redisAttachments[i]);
-                attachments.push(attachment);
-            }
-        }
-
+    common.getRedisAttachment(client, attachmentIds).then(function(attachments) {
         var emailFormat = common.generateEmail(email, user, attachments);
         var emailFormatString = emailFormat.join('');
         var emailToSend = new Buffer(emailFormatString).toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/\//g, '_');

@@ -65,21 +65,15 @@ function sendEmail(email, user, userBilling, attachmentIds, emailDelay) {
         message.bcc = email.data.BCC;
     }
 
-    var redisAttachmentId = []
-    for (var i = 0; i < attachmentIds.length; i++) {
-        redisAttachmentId.push('attachment_' + attachmentIds[i]);
-    }
-
-    client.mget(redisAttachmentId, function(err, redisAttachments) {
-        if (redisAttachments && redisAttachments.length > 0) {
+    common.getRedisAttachment(client, attachmentIds).then(function(attachments) {
+        if (attachments && attachments.length > 0) {
             message.attachments = [];
-            for (var i = 0; i < redisAttachments.length; i++) {
-                var parsedAttachment = JSON.parse(redisAttachments[i]);
-                var formattedContent = Buffer(parsedAttachment.data.data).toString('base64');
+            for (var i = 0; i < attachments.length; i++) {
+                var formattedContent = Buffer(attachments[i].data.data).toString('base64');
                 var attachment = {
                     content: formattedContent,
-                    filename: parsedAttachment.name,
-                    type: parsedAttachment.type,
+                    filename: attachments[i].name,
+                    type: attachments[i].type,
                     disposition: 'attachment'
                 };
                 message.attachments.push(attachment);

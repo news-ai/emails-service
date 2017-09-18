@@ -1,6 +1,34 @@
+var Q = require('q');
+
 var common = exports;
 
-function recordRedisError(client, emailDetails, err) {
+function getRedisAttachment(redisClient, attachmentIds) {
+    var deferred = Q.defer();
+
+    var redisAttachmentId = [];
+    for (var i = 0; i < attachmentIds.length; i++) {
+        redisAttachmentId.push('attachment_' + attachmentIds[i]);
+    }
+
+    redisClient.mget(redisAttachmentId, function(err, redisAttachments) {
+        if (err) {
+            deferred.reject(new Error(err));
+        } else {
+            var attachments = [];
+            if (redisAttachments && redisAttachments.length > 0) {
+                for (var i = 0; i < redisAttachments.length; i++) {
+                    var attachment = JSON.parse(redisAttachments[i]);
+                    attachments.push(attachment);
+                }
+            }
+            deferred.resolve(attachments);
+        }
+    });
+
+    return deferred.promise;
+}
+
+function recordRedisError(redisClient, emailDetails, err) {
     var emailId = emailDetails.email.key.id.toString();
     var redisKey = 'email_' + emailId;
     var redisValue = {
@@ -8,10 +36,10 @@ function recordRedisError(client, emailDetails, err) {
         'status': 'error',
         'message': err
     };
-    client.set(redisKey, JSON.stringify(redisValue), 'EX', 60 * 60 * 24);
+    redisClient.set(redisKey, JSON.stringify(redisValue), 'EX', 60 * 60 * 24);
 }
 
-function recordRedisSend(client, emailDetails) {
+function recordRedisSend(redisClient, emailDetails) {
     var emailId = emailDetails.email.key.id.toString();
     var redisKey = 'email_' + emailId;
     var redisValue = {
@@ -19,7 +47,7 @@ function recordRedisSend(client, emailDetails) {
         'status': 'delivered',
         'message': ''
     };
-    client.set(redisKey, JSON.stringify(redisValue), 'EX', 60 * 60 * 24);
+    redisClient.set(redisKey, JSON.stringify(redisValue), 'EX', 60 * 60 * 24);
 }
 
 function generateEmail(email, user, attachments) {
