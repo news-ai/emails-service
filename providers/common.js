@@ -10,20 +10,24 @@ function getRedisAttachment(redisClient, attachmentIds) {
         redisAttachmentId.push('attachment_' + attachmentIds[i]);
     }
 
-    redisClient.mget(redisAttachmentId, function(err, redisAttachments) {
-        if (err) {
-            deferred.reject(new Error(err));
-        } else {
-            var attachments = [];
-            if (redisAttachments && redisAttachments.length > 0) {
-                for (var i = 0; i < redisAttachments.length; i++) {
-                    var attachment = JSON.parse(redisAttachments[i]);
-                    attachments.push(attachment);
+    if (redisAttachmentId.length > 0) {
+        redisClient.mget(redisAttachmentId, function(err, redisAttachments) {
+            if (err) {
+                deferred.reject(new Error(err));
+            } else {
+                var attachments = [];
+                if (redisAttachments && redisAttachments.length > 0) {
+                    for (var i = 0; i < redisAttachments.length; i++) {
+                        var attachment = JSON.parse(redisAttachments[i]);
+                        attachments.push(attachment);
+                    }
                 }
+                deferred.resolve(attachments);
             }
-            deferred.resolve(attachments);
-        }
-    });
+        });
+    } else {
+        deferred.resolve([]);
+    }
 
     return deferred.promise;
 }
