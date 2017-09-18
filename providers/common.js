@@ -133,3 +133,4 @@ function generateEmail(email, user, attachments) {
 common.generateEmail = generateEmail;
 common.recordRedisError = recordRedisError;
 common.recordRedisSend = recordRedisSend;
+common.getRedisAttachment = getRedisAttachment;
