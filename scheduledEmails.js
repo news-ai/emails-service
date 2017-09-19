@@ -1,6 +1,7 @@
 'use strict';
 
 var raven = require('raven');
+var cron = require('cron');
 var Q = require('q');
 var rp = require('request-promise');
 var redis = require('redis');
@@ -52,10 +53,6 @@ function getScheduledEmails() {
     return deferred.promise;
 }
 
-function sendScheduledEmails(argument) {
-    // body...
-}
-
 function filteredEmails(emailData) {
     var returnEmails = [];
     for (var i = 0; i < emailData.emails.length; i++) {
@@ -93,9 +90,17 @@ function runScheduledEmails() {
             } else {
                 common.getAttachments(emailData.files).then(function(attachments) {
                     var scheduledEmails = filteredEmails(emailData);
+                    console.log(scheduledEmails.length);
                     for (var i = 0; i < scheduledEmails.length; i++) {
                         console.log(scheduledEmails[i]);
                     }
+                    // common.splitEmailsForCorrectProviders(emailData, attachments).then(function(status) {
+                    //     deferred.resolve(status);
+                    // }, function(err) {
+                    //     console.error(err);
+                    //     sentryClient.captureMessage(err);
+                    //     deferred.reject(err);
+                    // });
                 }, function(err) {
                     console.error(err);
                     sentryClient.captureMessage(err);
@@ -114,4 +119,10 @@ function runScheduledEmails() {
     return deferred.promise;
 }
 
-runScheduledEmails();
+var cronJob = cron.job("*/60 * * * * *", function() {
+    runScheduledEmails().then(function(status) {
+        console.log(status);
+    }, function(err) {
+        console.error(err);
+    });
+});
