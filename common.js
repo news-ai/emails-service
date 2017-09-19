@@ -89,7 +89,6 @@ function getDatastore(keys) {
 
             deferred.resolve(entities);
         });
-
     } catch (err) {
         deferred.reject(new Error(err));
     }
@@ -166,7 +165,7 @@ function getEmails(data, resouceType) {
                     }
                 }
 
-                if (user.data.BillingId === 0) {
+                if (user && user.data && user.data.BillingId === 0) {
                     var err = 'User Billing Id is missing for user: ' + userId;
                     deferred.reject(new Error(err));
                 } else {
@@ -214,11 +213,11 @@ function sendEmail(email, user, emailMethod, userBilling, attachments, emailDela
         user: user,
         emailMethod: emailMethod,
         userBilling: userBilling,
-        emailDelay: emailDelay,
-        attachments: attachments
+        attachments: attachments,
+        emailDelay: emailDelay
     };
 
-    var queueURL = ''
+    var queueURL = '';
     if (emailMethod === 'gmail') {
         queueURL = 'https://sqs.us-east-2.amazonaws.com/859780131339/emails-gmail.fifo';
     } else if (emailMethod === 'outlook') {
@@ -230,7 +229,7 @@ function sendEmail(email, user, emailMethod, userBilling, attachments, emailDela
     }
 
     if (queueURL === '') {
-        var err = 'No queue selected'
+        var err = 'No queue selected';
         console.error(err);
         deferred.resolve(err);
     } else {
@@ -263,6 +262,7 @@ function sendEmails(emailData, attachments, emailMethod) {
 
     // Setup promises for each of these emails
     for (var i = 0; i < emails.length; i++) {
+        // Set in redis that we are sending each of these emails
         var emailId = emails[i].key.id.toString();
         var redisKey = 'email_' + emailId;
         var redisValue = {
@@ -272,6 +272,7 @@ function sendEmails(emailData, attachments, emailMethod) {
         };
         client.set(redisKey, JSON.stringify(redisValue), 'EX', 60 * 60 * 24);
 
+        // Add promise to send email
         var emailDelay = getDelayParameterForEmail(i);
         var tempFunction = sendEmail(emails[i], emailData.user, emailMethod, emailData.billing, attachments, emailDelay);
         allPromises.push(tempFunction);
@@ -280,9 +281,11 @@ function sendEmails(emailData, attachments, emailMethod) {
     return Q.all(allPromises);
 }
 
-function sendEmailsAndSendToUpdateService(emailData, attachments, emailMethod) {
+function sendEmailsAndSendToQueues(emailData, attachments, emailMethod) {
     var deferred = Q.defer();
 
+    // Keep this function as a middleware. If we ever want to log or do some
+    // kind of more intelligent routing.
     sendEmails(emailData, attachments, emailMethod).then(function(responses) {
         deferred.resolve(responses);
     }, function(err) {
@@ -307,6 +310,8 @@ function maximumSentForEmailMethod(emailMethod) {
 function splitEmailsUsingRedis(emailData, attachments, emailMethod, numberSent) {
     var deferred = Q.defer();
     var allPromises = [];
+
+    // Setup functions of what we're going to be using to send out our emails
     var dailyMaximum = maximumSentForEmailMethod(emailMethod);
     var redisKey = emailData.user.key.id.toString() + '_' + emailMethod;
     var postSendingAmount = numberSent + emailData.emails.length;
@@ -318,13 +323,13 @@ function splitEmailsUsingRedis(emailData, attachments, emailMethod, numberSent) 
     // 3. Send all using email provider since we haven't used it yet
     if (numberSent > dailyMaximum) {
         // Send using Sendgrid
-        // Setup promise to send using sendgrid
-        var tempFunction = sendEmailsAndSendToUpdateService(emailData, attachments, 'sendgrid');
+        // Setup promise to send using Sendgrid
+        var tempFunction = sendEmailsAndSendToQueues(emailData, attachments, 'sendgrid');
         allPromises.push(tempFunction);
     } else if (postSendingAmount > dailyMaximum) {
         // Number of emails sent + number of emails going to send is more
         // than what we should be sending today then:
-        // Send using both email provider and sendgrid
+        // Send using both email provider and Sendgrid
         var providerAmountLeft = dailyMaximum - numberSent;
 
         // These are what we'll use in sending out the 2 email promises
@@ -350,14 +355,14 @@ function splitEmailsUsingRedis(emailData, attachments, emailMethod, numberSent) 
             sentFromEmailProvider = emailProviderEmailData.emails.length;
 
             // Setup promise to send using email provider
-            var tempFunctionEmailProvider = sendEmailsAndSendToUpdateService(emailProviderEmailData, attachments, emailMethod);
+            var tempFunctionEmailProvider = sendEmailsAndSendToQueues(emailProviderEmailData, attachments, emailMethod);
             allPromises.push(tempFunctionEmailProvider);
         }
 
-        // 2. Send from sendgrid
+        // 2. Send from Sendgrid
         if (sendgridEmailData.emails.length > 0) {
-            // Setup promise to send using sendgrid
-            var tempFunctionSendgrid = sendEmailsAndSendToUpdateService(sendgridEmailData, attachments, 'sendgrid');
+            // Setup promise to send using Sendgrid
+            var tempFunctionSendgrid = sendEmailsAndSendToQueues(sendgridEmailData, attachments, 'sendgrid');
             allPromises.push(tempFunctionSendgrid);
         }
 
@@ -369,11 +374,14 @@ function splitEmailsUsingRedis(emailData, attachments, emailMethod, numberSent) 
         sentFromEmailProvider = emailData.emails.length;
 
         // Setup promise to send using email provider
-        var tempFunction = sendEmailsAndSendToUpdateService(emailData, attachments, emailMethod);
+        var tempFunction = sendEmailsAndSendToQueues(emailData, attachments, emailMethod);
         allPromises.push(tempFunction);
     }
 
     // Update in redis how many emails were sent using that email provider
+    // The secondsLeft is the number of seconds left to midnight. We want it to expire
+    // every midnight. Just so when it's a new day - they will get a new limit on
+    // how many each provider can send emails.
     var d = new Date();
     var secondsLeft = (24 * 60 * 60) - (d.getHours() * 60 * 60) - (d.getMinutes() * 60) - d.getSeconds();
     client.set(redisKey, numberSent + sentFromEmailProvider, 'EX', secondsLeft);
@@ -389,6 +397,7 @@ function splitEmailsForCorrectProviders(emailData, attachments) {
     var firstEmail = emails[0];
     var emailMethod = firstEmail.data.Method;
 
+    // Add attachments to redis
     var redisAttachments = [];
     if (attachments.length > 0) {
         for (var i = 0; i < attachments.length; i++) {
@@ -398,11 +407,13 @@ function splitEmailsForCorrectProviders(emailData, attachments) {
         }
     }
 
+    // Create redis keys to lookup if emails have been processed or sent in the past
     var redisEmailKeys = [];
     for (var i = 0; i < emails.length; i++) {
         redisEmailKeys.push('email_' + emails[i].key.id);
     }
 
+    // Attempt to get keys from Redis of each of these emails
     client.mget(redisEmailKeys, function(err, redisEmails) {
         // Check if emails have already been processed
         // if they have then remove them from emailData.emails
@@ -417,6 +428,7 @@ function splitEmailsForCorrectProviders(emailData, attachments) {
         }
 
         // Record the emails in redis
+        // So we never accidentally double send these emails
         var tempEmails = emailData.emails.slice();;
         emailData.emails = [];
         for (var i = 0; i < tempEmails.length; i++) {
@@ -429,28 +441,44 @@ function splitEmailsForCorrectProviders(emailData, attachments) {
             };
             client.set(redisKey, JSON.stringify(redisValue), 'EX', 60 * 60 * 24);
 
+            // If email has never been sent before then we add it to emailData
+            // emails. This is the array of emails that will actually be sent
+            // through the sendEmails function.
             if (!(emailId in sentEmails)) {
                 emailData.emails.push(tempEmails[i]);
             }
         }
 
         // Send emails
+        // We split it into Sendgrid & other providers.
+        // For Sendgrid we don't need to worry about spliting it among
+        // different providers. We can send the Sendgrid emails right away
         if (emailMethod === 'sendgrid') {
             // If sendgrid then send the emails directly
-            sendEmailsAndSendToUpdateService(emailData, redisAttachments, emailMethod).then(function(status) {
+            sendEmailsAndSendToQueues(emailData, redisAttachments, emailMethod).then(function(status) {
                 deferred.resolve(status);
             }, function(err) {
                 deferred.reject(err);
             });
         } else {
+            // For other providers we want to check how many of each provider
+            // have been sent. We strictly only want to send a particular amount
+            // per day. Just so we can obey the laws of our overlord providers.
             // Check redis for how many emails have been sent for that particular emailMethod today
             var redisKey = emailData.user.key.id.toString() + '_' + emailMethod;
             client.get(redisKey, function(err, numberSent) {
+                // If there's no key - that means no emails have been sent
+                // through this platform.
                 if (!numberSent) {
                     numberSent = 0;
                 } else {
+                    // If there is a key then the value is a string. So parse it.
                     numberSent = parseInt(numberSent);
                 }
+
+                // Send emails to get split. We split using the redis data.
+                // Then we update redis to note how many emails have been
+                // sent already.
                 splitEmailsUsingRedis(emailData, redisAttachments, emailMethod, numberSent).then(function(status) {
                     deferred.resolve(status);
                 }, function(err) {

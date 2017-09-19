@@ -14,6 +14,9 @@ var datastore = require('@google-cloud/datastore')({
     projectId: 'newsai-1166'
 });
 
+// Instantiate a redis client
+var client = redis.createClient();
+
 // Import application specific
 var common = require('./common');
 
@@ -72,6 +75,10 @@ function filteredEmails(emailData) {
     return returnEmails;
 }
 
+function processEmails(emails) {
+    // body...
+}
+
 function runScheduledEmails() {
     var deferred = Q.defer();
 
@@ -79,6 +86,7 @@ function runScheduledEmails() {
         var data = {
             EmailIds: []
         };
+
         for (var i = 0; i < emails.length; i++) {
             data.EmailIds.push(emails[i].key.id);
         }
@@ -90,17 +98,36 @@ function runScheduledEmails() {
             } else {
                 common.getAttachments(emailData.files).then(function(attachments) {
                     var scheduledEmails = filteredEmails(emailData);
-                    console.log(scheduledEmails.length);
+                    var scheduledEmailsRedisKey = [];
                     for (var i = 0; i < scheduledEmails.length; i++) {
-                        console.log(scheduledEmails[i]);
+                        scheduledEmailsRedisKey.push('scheduled_' + scheduledEmails[i].key.id);
                     }
-                    // common.splitEmailsForCorrectProviders(emailData, attachments).then(function(status) {
-                    //     deferred.resolve(status);
-                    // }, function(err) {
-                    //     console.error(err);
-                    //     sentryClient.captureMessage(err);
-                    //     deferred.reject(err);
-                    // });
+                    // Use redis to double check if the email has been
+                    // sent or not. Have a separate redis key for
+                    // scheduled emails.
+                    client.mget(scheduledEmailsRedisKey, function(err, redisEmails) {
+                        // Check if scheduled emails has been sent
+                        var scheduledEmails = {};
+                        if (redisEmails.length > 0) {
+                            for (var i = 0; i < redisEmails.length; i++) {
+                                if (redisEmails[i] !== null) {
+                                    var redisEmailData = JSON.parse(redisEmails[i]);
+                                    scheduledEmails[redisEmailData.id] = true;
+                                }
+                            }
+                        }
+
+                        // Add schedule emails to redis
+
+                        // Send emails
+                        // common.splitEmailsForCorrectProviders(emailData, attachments).then(function(status) {
+                        //     deferred.resolve(status);
+                        // }, function(err) {
+                        //     console.error(err);
+                        //     sentryClient.captureMessage(err);
+                        //     deferred.reject(err);
+                        // });
+                    });
                 }, function(err) {
                     console.error(err);
                     sentryClient.captureMessage(err);
@@ -120,9 +147,12 @@ function runScheduledEmails() {
 }
 
 var cronJob = cron.job("*/60 * * * * *", function() {
+    console.log('Running scheduled email');
     runScheduledEmails().then(function(status) {
         console.log(status);
     }, function(err) {
         console.error(err);
     });
 });
+
+cronJob.start();
