@@ -70,7 +70,7 @@ function checkEmailNotSent(email) {
 
 function getEmails(emailData) {
     var deferred = Q.defer();
-    
+
     try {
         var keys = common.getKeysFromRequestData(emailData, 'Email');
         // Get emails
@@ -86,8 +86,6 @@ function getEmails(emailData) {
                 }
             }
 
-            console.log(filteredEmails);
-
             if (filteredEmails.length > 0) {
                 // Get users
                 var userIds = {};
@@ -97,7 +95,7 @@ function getEmails(emailData) {
                 for (var i = 0; i < filteredEmails.length; i++) {
                     // Set user id in hash map
                     userIds[filteredEmails[i].data.CreatedBy] = true;
-                    
+
                     // Set attachment id in hashmap for this email
                     if (filteredEmails[i].data && filteredEmails[i].data.Attachments && filteredEmails[i].data.Attachments.length > 0) {
                         for (var x = 0; x < filteredEmails[i].data.Attachments.length; x++) {
@@ -108,7 +106,7 @@ function getEmails(emailData) {
 
                 var userIdKeys = Object.keys(userIds);
                 var fileIdKeys = Object.keys(fileIds);
-                
+
                 // Go through user and file ids to generate
                 // datastore Ids. This is how we will bulk query the users
                 // and files we need to send out these emails.
@@ -228,33 +226,37 @@ function runScheduledEmails() {
     var deferred = Q.defer();
 
     getScheduledEmails().then(function(emails) {
-        var data = {
-            EmailIds: []
-        };
+        if (emails.length > 0) {
+            var data = {
+                EmailIds: []
+            };
 
-        for (var i = 0; i < emails.length; i++) {
-            data.EmailIds.push(emails[i].key.id);
-        }
-
-        // Get all emails that were in the email ids array
-        getEmails(data, 'Email').then(function(emailData) {
-            if (emailData.length === 0) {
-                console.log('No emails to send');
-                deferred.resolve({});
-            } else {
-                getAttachmentsAndSendEmails(emailData).then(function(status) {
-                    console.log(status);
-                }, function(err) {
-                    console.error(err);
-                    sentryClient.captureMessage(err);
-                    deferred.reject(err);
-                })
+            for (var i = 0; i < emails.length; i++) {
+                data.EmailIds.push(emails[i].key.id);
             }
-        }, function(err) {
-            console.error(err);
-            sentryClient.captureMessage(err);
-            deferred.reject(err);
-        });
+
+            // Get all emails that were in the email ids array
+            getEmails(data, 'Email').then(function(emailData) {
+                if (emailData.length === 0) {
+                    console.log('No emails to send');
+                    deferred.resolve({});
+                } else {
+                    getAttachmentsAndSendEmails(emailData).then(function(status) {
+                        deferred.resolve(status);
+                    }, function(err) {
+                        console.error(err);
+                        sentryClient.captureMessage(err);
+                        deferred.reject(err);
+                    })
+                }
+            }, function(err) {
+                console.error(err);
+                sentryClient.captureMessage(err);
+                deferred.reject(err);
+            });
+        } else {
+            deferred.resolve({});
+        }
     }, function(err) {
         console.error(err);
     });
