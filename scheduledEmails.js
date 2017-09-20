@@ -56,6 +56,17 @@ function getScheduledEmails() {
     return deferred.promise;
 }
 
+function checkEmailNotSent(email) {
+    if (email.data.Delievered) {
+        return false;
+    }
+
+    if (email.data.GmailId === '' && email.data.SendGridId === '') {
+        return true;
+    }
+
+    return false;
+}
 
 function getEmails(emailData) {
     var deferred = Q.defer();
@@ -68,13 +79,14 @@ function getEmails(emailData) {
             // as we're going along we don't consider them. Incorrect
             // emails are just emails that shouldn't be included in the
             // scheduled query.
-            var filteredEmails = datastoreEmails;
-            // var filteredEmails = [];
-            // for (var i = 0; i < datastoreEmails.length; i++) {
-            //     if (datastoreEmails[i].data.GmailId === '' && datastoreEmails[i].data.SendGridId === '') {
-            //         filteredEmails.push(datastoreEmails[i]);
-            //     }
-            // }
+            var filteredEmails = [];
+            for (var i = 0; i < datastoreEmails.length; i++) {
+                if (checkEmailNotSent(datastoreEmails[i])) {
+                    filteredEmails.push(datastoreEmails[i]);
+                }
+            }
+
+            console.log(filteredEmails);
 
             if (filteredEmails.length > 0) {
                 // Get users
@@ -189,11 +201,23 @@ function getEmails(emailData) {
     return deferred.promise;
 }
 
-function getAttachments(emailData) {
+function getAttachmentsAndSendEmail(emailData) {
+    var deferred = Q.defer();
+
+    common.getAttachments(emailData[i].files).then(function(attachments) {
+        deferred.resolve(attachments);
+    }, function(err) {
+        deferred.reject(err);
+    });
+
+    return deferred.promise;
+}
+
+function getAttachmentsAndSendEmails(emailData) {
     var allPromises = [];
 
     for (var i = 0; i < emailData.length; i++) {
-        var toExecute = common.getAttachments(emailData[i].files);
+        var toExecute = getAttachmentsAndSendEmail(emailData[i]);
         allPromises.push(toExecute);
     }
 
@@ -218,8 +242,8 @@ function runScheduledEmails() {
                 console.log('No emails to send');
                 deferred.resolve({});
             } else {
-                getAttachments(emailData).then(function(attachments) {
-                    console.log(attachments);
+                getAttachmentsAndSendEmails(emailData).then(function(status) {
+                    console.log(status);
                 }, function(err) {
                     console.error(err);
                     sentryClient.captureMessage(err);
