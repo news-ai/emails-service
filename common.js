@@ -321,7 +321,7 @@ function splitEmailsUsingRedis(emailData, attachments, emailMethod, numberSent) 
     // 1. Send all using Sendgrid since we've already emptied it out
     // 2. Send some using Sendgrid and some using email provider
     // 3. Send all using email provider since we haven't used it yet
-    if (numberSent > dailyMaximum) {
+    if (numberSent >= dailyMaximum) {
         // Send using Sendgrid
         // Setup promise to send using Sendgrid
         var tempFunction = sendEmailsAndSendToQueues(emailData, attachments, 'sendgrid');
