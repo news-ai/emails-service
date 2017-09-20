@@ -494,3 +494,5 @@ function splitEmailsForCorrectProviders(emailData, attachments) {
 common.getEmails = getEmails;
 common.getAttachments = getAttachments;
 common.splitEmailsForCorrectProviders = splitEmailsForCorrectProviders;
+common.getDatastore = getDatastore;
+common.getKeysFromRequestData = getKeysFromRequestData;
