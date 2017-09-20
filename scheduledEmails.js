@@ -182,12 +182,22 @@ function getEmails(emailData) {
         }, function(err) {
             deferred.reject(err);
         });
-
     } catch (err) {
         deferred.reject(new Error(err));
     }
 
     return deferred.promise;
+}
+
+function getAttachments(emailData) {
+    var allPromises = [];
+
+    for (var i = 0; i < emailData.length; i++) {
+        var toExecute = common.getAttachments(emailData[i].files);
+        allPromises.push(toExecute);
+    }
+
+    return Q.all(allPromises);
 }
 
 function runScheduledEmails() {
@@ -208,11 +218,13 @@ function runScheduledEmails() {
                 console.log('No emails to send');
                 deferred.resolve({});
             } else {
-                // var scheduledEmails = filteredEmails(emailData);
-                console.log(emailData.length);
-                for (var i = 0; i < emailData.length; i++) {
-                    console.log(emailData[i]);
-                }
+                getAttachments(emailData).then(function(attachments) {
+                    console.log(attachments);
+                }, function(err) {
+                    console.error(err);
+                    sentryClient.captureMessage(err);
+                    deferred.reject(err);
+                })
             }
         }, function(err) {
             console.error(err);
