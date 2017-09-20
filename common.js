@@ -132,68 +132,6 @@ function getAttachments(attachments) {
     return Q.all(allPromises);
 }
 
-function getEmails(data, resouceType) {
-    var deferred = Q.defer();
-    try {
-        var keys = getKeysFromRequestData(data, resouceType);
-        getDatastore(keys).then(function(emails) {
-            // Get user, billing, and files
-            var singleEmailData = emails[0].data;
-            var userAttachmentKeys = [];
-
-            // Get user
-            var userId = datastore.key(['User', singleEmailData.CreatedBy]);
-            userAttachmentKeys.push(userId);
-
-            // Get files
-            if (singleEmailData.Attachments) {
-                for (var i = 0; i < singleEmailData.Attachments.length; i++) {
-                    var fileId = datastore.key(['File', singleEmailData.Attachments[i]]);
-                    userAttachmentKeys.push(fileId);
-                }
-            }
-
-            getDatastore(userAttachmentKeys).then(function(userFileEntities) {
-                // Get billing
-                var user = {};
-                var files = [];
-                for (var i = 0; i < userFileEntities.length; i++) {
-                    if (userFileEntities[i].key.kind === 'User') {
-                        user = userFileEntities[i];
-                    } else {
-                        files.push(userFileEntities[i])
-                    }
-                }
-
-                if (user && user.data && user.data.BillingId === 0) {
-                    var err = 'User Billing Id is missing for user: ' + userId;
-                    deferred.reject(new Error(err));
-                } else {
-                    var billingId = datastore.key(['Billing', user.data.BillingId]);
-                    getDatastore([billingId]).then(function(billingEntities) {
-                        deferred.resolve({
-                            emails: emails,
-                            user: user,
-                            billing: billingEntities,
-                            files: files
-                        });
-                    }, function(err) {
-                        deferred.reject(err);
-                    });
-                }
-            }, function(err) {
-                deferred.reject(err);
-            });
-        }, function(err) {
-            deferred.reject(err);
-        });
-    } catch (err) {
-        deferred.reject(new Error(err));
-    }
-
-    return deferred.promise;
-}
-
 function getDelayParameterForEmail(emailIndex) {
     var betweenDelay = 60;
 
@@ -491,7 +429,6 @@ function splitEmailsForCorrectProviders(emailData, attachments) {
     return deferred.promise;
 }
 
-common.getEmails = getEmails;
 common.getAttachments = getAttachments;
 common.splitEmailsForCorrectProviders = splitEmailsForCorrectProviders;
 common.getDatastore = getDatastore;
