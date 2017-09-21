@@ -268,19 +268,13 @@ function runScheduledEmails() {
     return deferred.promise;
 }
 
-// var cronJob = cron.job("*/60 * * * * *", function() {
-//     console.log('Running scheduled email');
-//     runScheduledEmails().then(function(status) {
-//         console.log(status);
-//     }, function(err) {
-//         console.error(err);
-//     });
-// });
-
-// cronJob.start();
-
-runScheduledEmails().then(function(status) {
-    console.log(status);
-}, function(err) {
-    console.error(err);
+var cronJob = cron.job("*/60 * * * * *", function() {
+    console.log('Running scheduled email');
+    runScheduledEmails().then(function(status) {
+        console.log(status);
+    }, function(err) {
+        console.error(err);
+    });
 });
+
+cronJob.start();
