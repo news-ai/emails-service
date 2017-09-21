@@ -153,7 +153,7 @@ function getEmails(emailData) {
                         }
 
                         emailData.push({
-                            emails: filteredEmails[i],
+                            emails: [filteredEmails[i]],
                             user: emailUser,
                             billing: {},
                             files: emailFiles
