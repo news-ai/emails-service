@@ -41,7 +41,7 @@ function getTopic(currentTopicName, cb) {
 function getEmails(data, resouceType) {
     var deferred = Q.defer();
     try {
-        var keys = getKeysFromRequestData(data, resouceType);
+        var keys = common.getKeysFromRequestData(data, resouceType);
         common.getDatastore(keys).then(function(emails) {
             // Get user, billing, and files
             var singleEmailData = emails[0].data;

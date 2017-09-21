@@ -202,8 +202,12 @@ function getEmails(emailData) {
 function getAttachmentsAndSendEmail(emailData) {
     var deferred = Q.defer();
 
-    common.getAttachments(emailData[i].files).then(function(attachments) {
-        deferred.resolve(attachments);
+    common.getAttachments(emailData.files).then(function(attachments) {
+        common.splitEmailsForCorrectProviders(emailData, attachments).then(function(status) {
+            deferred.resolve(status);
+        }, function(err) {
+            deferred.reject(err);
+        });
     }, function(err) {
         deferred.reject(err);
     });
