@@ -88,8 +88,9 @@ function sendEmail(email, user, userBilling, attachmentIds, emailDelay) {
             message.sendAt = Math.floor(timeSend / 1000);
         }
 
-        message.unique_args = {
-            customerAccountNumber: user.key.id.toString()
+        message.custom_args = {
+            customerAccountNumber: user.key.id.toString(),
+            emailId: email.key.id.toString()
         };
 
         sgMail.send(message).then(function(response) {

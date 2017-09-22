@@ -208,8 +208,6 @@ function getAttachmentsAndSendEmail(emailData) {
         // }, function(err) {
         //     deferred.reject(err);
         // });
-        console.log(emailData);
-        console.log(emailData.emails);
         deferred.resolve(attachments);
     }, function(err) {
         deferred.reject(err);
