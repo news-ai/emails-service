@@ -43,6 +43,8 @@ function getScheduledEmails() {
         .filter('IsSent', '=', true)
         .filter('Delievered', '=', false)
         .filter('Cancel', '=', false)
+        .filter('SendGridId', '=', '')
+        // .filter('GmailId', '=', '')
         .select('__key__');
 
     datastore.runQuery(query, (err, entities, nextQuery) => {
@@ -231,6 +233,7 @@ function runScheduledEmails() {
     var deferred = Q.defer();
 
     getScheduledEmails().then(function(emails) {
+        console.log(emails);
         if (emails.length > 0) {
             var data = {
                 EmailIds: []
