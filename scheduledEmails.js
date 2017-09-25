@@ -44,7 +44,7 @@ function getScheduledEmails() {
         .filter('Delievered', '=', false)
         .filter('Cancel', '=', false)
         .filter('SendGridId', '=', '')
-        // .filter('GmailId', '=', '')
+        .filter('GmailId', '=', '')
         .select('__key__');
 
     datastore.runQuery(query, (err, entities, nextQuery) => {
@@ -233,7 +233,6 @@ function runScheduledEmails() {
     var deferred = Q.defer();
 
     getScheduledEmails().then(function(emails) {
-        console.log(emails);
         if (emails.length > 0) {
             var data = {
                 EmailIds: []
@@ -252,17 +251,16 @@ function runScheduledEmails() {
                     getAttachmentsAndSendEmails(emailData).then(function(status) {
                         deferred.resolve(status);
                     }, function(err) {
-                        console.error(err);
                         sentryClient.captureMessage(err);
                         deferred.reject(err);
                     })
                 }
             }, function(err) {
-                console.error(err);
                 sentryClient.captureMessage(err);
                 deferred.reject(err);
             });
         } else {
+            console.log('No scheduled emails');
             deferred.resolve({});
         }
     }, function(err) {
@@ -271,6 +269,12 @@ function runScheduledEmails() {
 
     return deferred.promise;
 }
+
+// runScheduledEmails().then(function(status) {
+//     console.log(status);
+// }, function(err) {
+//     console.error(err);
+// });
 
 var cronJob = cron.job("*/60 * * * * *", function() {
     console.log('Running scheduled email');
